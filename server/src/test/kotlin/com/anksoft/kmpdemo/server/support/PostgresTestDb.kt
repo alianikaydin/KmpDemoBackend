@@ -25,6 +25,15 @@ object PostgresTestDb {
         }
     }
 
+    /** Freezes the database process (docker pause): connections stay open but nothing answers. */
+    fun pause() {
+        container.dockerClient.pauseContainerCmd(container.containerId).exec()
+    }
+
+    fun unpause() {
+        container.dockerClient.unpauseContainerCmd(container.containerId).exec()
+    }
+
     fun countRows(table: String): Int = query("SELECT count(*) FROM $table") { it.getInt(1) }
 
     fun execute(sql: String) {

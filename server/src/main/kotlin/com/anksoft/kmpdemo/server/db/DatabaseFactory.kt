@@ -25,6 +25,11 @@ fun createDataSource(settings: AppSettings): HikariDataSource = HikariDataSource
         connectionTimeout = 3_000
         validationTimeout = 2_000
         poolName = "server-db"
+        // Without these, a paused or partitioned database blocks reads forever (AC-13).
+        // pgjdbc takes both values in seconds. They apply to Flyway too, so a single
+        // migration statement must finish within socketTimeout.
+        addDataSourceProperty("connectTimeout", "3")
+        addDataSourceProperty("socketTimeout", "5")
     },
 )
 
@@ -40,6 +45,8 @@ fun migrate(dataSource: DataSource) {
 /**
  * Exposed retries failed transactions three times by default, which would triple the
  * connection timeout when the database is down; a failed request should fail fast instead.
+ * Note: if the attempt count is ever raised, Exposed logs each retry at WARN level together
+ * with the failed SQL text; keep that in mind before shipping logs somewhere sensitive.
  */
 fun connect(dataSource: DataSource): Database =
     Database.connect(dataSource, databaseConfig = DatabaseConfig { defaultMaxAttempts = 1 })
