@@ -24,4 +24,15 @@ object PostgresTestDb {
             }
         }
     }
+
+    fun countRows(table: String): Int = query("SELECT count(*) FROM $table") { it.getInt(1) }
+
+    fun execute(sql: String) {
+        DriverManager.getConnection(jdbcUrl, username, password).use { c -> c.createStatement().use { it.execute(sql) } }
+    }
+
+    fun <T> query(sql: String, read: (java.sql.ResultSet) -> T): T =
+        DriverManager.getConnection(jdbcUrl, username, password).use { c ->
+            c.createStatement().use { st -> st.executeQuery(sql).use { rs -> check(rs.next()); read(rs) } }
+        }
 }

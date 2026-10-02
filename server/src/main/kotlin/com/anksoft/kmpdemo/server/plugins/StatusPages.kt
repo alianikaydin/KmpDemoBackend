@@ -7,6 +7,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
 import io.ktor.server.plugins.BadRequestException
+import io.ktor.server.plugins.CannotTransformContentToTypeException
 import io.ktor.server.plugins.UnsupportedMediaTypeException
 import io.ktor.server.plugins.PayloadTooLargeException
 import io.ktor.server.plugins.statuspages.StatusPages
@@ -52,6 +53,10 @@ fun Application.configureStatusPages() {
             call.respondError(HttpStatusCode.PayloadTooLarge, ErrorCodes.PAYLOAD_TOO_LARGE)
         }
         exception<UnsupportedMediaTypeException> { call, _ ->
+            call.respondError(HttpStatusCode.UnsupportedMediaType, ErrorCodes.UNSUPPORTED_MEDIA_TYPE)
+        }
+        // Thrown when no converter accepts the request content type (e.g. text/plain or a missing header).
+        exception<CannotTransformContentToTypeException> { call, _ ->
             call.respondError(HttpStatusCode.UnsupportedMediaType, ErrorCodes.UNSUPPORTED_MEDIA_TYPE)
         }
         exception<BadRequestException> { call, cause ->

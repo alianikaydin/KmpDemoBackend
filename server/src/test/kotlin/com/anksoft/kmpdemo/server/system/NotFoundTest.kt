@@ -21,4 +21,14 @@ class NotFoundTest {
             assertThat(response.body<ErrorResponseDto>()).isEqualTo(ErrorResponseDto(ErrorCodes.NOT_FOUND, "Not found."))
         }
     }
+
+    @Test
+    fun `wrong method on a known path returns 405 with the standard error body`() { // AC-13
+        withTestApp { client ->
+            val response = client.get("/api/v1/auth/login")
+
+            assertThat(response.status).isEqualTo(HttpStatusCode.MethodNotAllowed)
+            assertThat(response.body<ErrorResponseDto>().error).isEqualTo(ErrorCodes.METHOD_NOT_ALLOWED)
+        }
+    }
 }
