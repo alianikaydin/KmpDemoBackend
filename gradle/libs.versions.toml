@@ -13,6 +13,7 @@ springSecurityCrypto = "7.1.1"
 bouncycastle = "1.86"
 logback = "1.6.5"
 logstashLogback = "9.0"
+springCore = "7.0.9"
 testcontainers = "2.0.5"
 
 [libraries]
@@ -50,6 +51,7 @@ hikaricp = { module = "com.zaxxer:HikariCP", version.ref = "hikari" }
 
 spring-security-crypto = { module = "org.springframework.security:spring-security-crypto", version.ref = "springSecurityCrypto" }
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+spring-core = { module = "org.springframework:spring-core", version.ref = "springCore" }
 
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstashLogback" }

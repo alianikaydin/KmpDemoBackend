@@ -44,6 +44,8 @@ dependencies {
 
     implementation(libs.spring.security.crypto)
     implementation(libs.bouncycastle.bcprov)
+    // spring-security-crypto declares no runtime dependency on spring-core but needs it (StringUtils, spring-jcl).
+    implementation(libs.spring.core)
 
     implementation(libs.logback.classic)
     implementation(libs.logstash.logback.encoder)
