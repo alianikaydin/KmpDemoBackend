@@ -1,0 +1,43 @@
+# Local environment: Postgres + the server. Used by scripts/server-up.sh.
+x-server: &server
+  build: ./server
+  depends_on:
+    postgres:
+      condition: service_healthy
+  env_file: .env
+  environment:
+    DATABASE_URL: jdbc:postgresql://postgres:5432/kmpdemo
+    CORS_ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    SWAGGER_ENABLED: "true"
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: kmpdemo
+      POSTGRES_USER: ${DATABASE_USER:-kmpdemo}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?DATABASE_PASSWORD must be set (see .env.example)}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-kmpdemo} -d kmpdemo"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "5433:5432"
+
+  server:
+    <<: *server
+    ports:
+      - "8081:8081"
+
+  # Second instance on the same database, for manual multi-instance checks.
+  server-2:
+    <<: *server
+    profiles: [multi]
+    ports:
+      - "8082:8081"
+
+volumes:
+  pgdata:
