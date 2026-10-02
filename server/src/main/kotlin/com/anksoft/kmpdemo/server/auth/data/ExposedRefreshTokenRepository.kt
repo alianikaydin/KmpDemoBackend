@@ -21,34 +21,49 @@ import java.util.UUID
 class ExposedRefreshTokenRepository(private val db: Database) : RefreshTokenRepository {
 
     override suspend fun create(record: RefreshTokenRecord) {
-        db.io {
-            RefreshTokensTable.insert {
-                it[id] = record.id
-                it[userId] = record.userId
-                it[familyId] = record.familyId
-                it[tokenHash] = record.tokenHash
-                it[createdAt] = record.createdAt.utc()
-                it[expiresAt] = record.expiresAt.utc()
-                it[usedAt] = record.usedAt?.utc()
-                it[revokedAt] = record.revokedAt?.utc()
-            }
-        }
+        db.io { insertRecord(record) }
     }
 
     /** One `UPDATE ... RETURNING` statement, so of two concurrent callers exactly one wins. */
-    override suspend fun markUsedIfActive(tokenHash: String, now: Instant): RefreshTokenRecord? = db.io {
-        RefreshTokensTable
-            .updateReturning(
-                where = {
-                    (RefreshTokensTable.tokenHash eq tokenHash) and
-                        RefreshTokensTable.usedAt.isNull() and
-                        RefreshTokensTable.revokedAt.isNull() and
-                        (RefreshTokensTable.expiresAt greater now.utc())
-                },
-            ) { it[usedAt] = now.utc() }
-            .singleOrNull()
-            ?.toRecord()
+    override suspend fun markUsedIfActive(tokenHash: String, now: Instant): RefreshTokenRecord? =
+        db.io { consume(tokenHash, now) }
+
+    /**
+     * The consuming UPDATE and the INSERT of the successor share one transaction. A concurrent
+     * loser's UPDATE blocks on the row lock until this commits, so its follow-up family
+     * revocation always sees (and revokes) the successor.
+     */
+    override suspend fun rotate(oldHash: String, now: Instant, newRecord: RefreshTokenRecord): RefreshTokenRecord? =
+        db.io {
+            consume(oldHash, now)?.also { consumed ->
+                insertRecord(newRecord.copy(userId = consumed.userId, familyId = consumed.familyId))
+            }
+        }
+
+    private fun insertRecord(record: RefreshTokenRecord) {
+        RefreshTokensTable.insert {
+            it[id] = record.id
+            it[userId] = record.userId
+            it[familyId] = record.familyId
+            it[tokenHash] = record.tokenHash
+            it[createdAt] = record.createdAt.utc()
+            it[expiresAt] = record.expiresAt.utc()
+            it[usedAt] = record.usedAt?.utc()
+            it[revokedAt] = record.revokedAt?.utc()
+        }
     }
+
+    private fun consume(tokenHash: String, now: Instant): RefreshTokenRecord? = RefreshTokensTable
+        .updateReturning(
+            where = {
+                (RefreshTokensTable.tokenHash eq tokenHash) and
+                    RefreshTokensTable.usedAt.isNull() and
+                    RefreshTokensTable.revokedAt.isNull() and
+                    (RefreshTokensTable.expiresAt greater now.utc())
+            },
+        ) { it[usedAt] = now.utc() }
+        .singleOrNull()
+        ?.toRecord()
 
     override suspend fun findByHash(tokenHash: String): RefreshTokenRecord? = db.io {
         RefreshTokensTable.selectAll().where { RefreshTokensTable.tokenHash eq tokenHash }.singleOrNull()?.toRecord()

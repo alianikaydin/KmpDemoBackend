@@ -80,7 +80,10 @@ class AuthService(
         val now = clock.instant()
         val hash = refreshGenerator.hash(refreshToken)
 
-        val consumed = refreshTokens.markUsedIfActive(hash, now)
+        val refreshToken = refreshGenerator.generate()
+        // userId/familyId are placeholders: the repository takes them from the consumed token.
+        val successor = newRecord(UUID.randomUUID(), UUID.randomUUID(), refreshToken, now)
+        val consumed = refreshTokens.rotate(hash, now, successor)
         if (consumed == null) {
             val existing = refreshTokens.findByHash(hash)
             if (existing?.usedAt != null) {
@@ -91,7 +94,7 @@ class AuthService(
             return AuthResult.Err(AuthError.INVALID_TOKEN)
         }
         val user = users.findById(consumed.userId) ?: return AuthResult.Err(AuthError.INVALID_TOKEN)
-        return AuthResult.Ok(newSession(user, consumed.familyId))
+        return AuthResult.Ok(AuthSession(accessTokens.issue(user.id, now), refreshToken, user))
     }
 
     /** Idempotent: unknown or already revoked tokens succeed too. */
@@ -108,20 +111,21 @@ class AuthService(
     private suspend fun newSession(user: User, familyId: UUID): AuthSession {
         val now = clock.instant()
         val refreshToken = refreshGenerator.generate()
-        refreshTokens.create(
-            RefreshTokenRecord(
-                id = UUID.randomUUID(),
-                userId = user.id,
-                familyId = familyId,
-                tokenHash = refreshGenerator.hash(refreshToken),
-                createdAt = now,
-                expiresAt = now.plus(refreshTtl),
-                usedAt = null,
-                revokedAt = null,
-            ),
-        )
+        refreshTokens.create(newRecord(user.id, familyId, refreshToken, now))
         return AuthSession(accessTokens.issue(user.id, now), refreshToken, user)
     }
+
+    private fun newRecord(userId: UUID, familyId: UUID, refreshToken: String, now: java.time.Instant) =
+        RefreshTokenRecord(
+            id = UUID.randomUUID(),
+            userId = userId,
+            familyId = familyId,
+            tokenHash = refreshGenerator.hash(refreshToken),
+            createdAt = now,
+            expiresAt = now.plus(refreshTtl),
+            usedAt = null,
+            revokedAt = null,
+        )
 
     private fun isPlausibleToken(token: String) = token.isNotEmpty() && token.length <= MAX_TOKEN_LENGTH
 

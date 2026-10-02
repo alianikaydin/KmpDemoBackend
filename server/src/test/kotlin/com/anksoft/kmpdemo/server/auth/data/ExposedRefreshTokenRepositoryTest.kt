@@ -95,4 +95,32 @@ class ExposedRefreshTokenRepositoryTest {
 
         assertThat(results.count { it != null }).isEqualTo(1)
     }
+
+    @Test
+    fun `rotate consumes the old token and stores the successor in its family`() = withTestDatabase { db -> // AC-6
+        val repo = ExposedRefreshTokenRepository(db)
+        val userId = seedUser(db)
+        val family = UUID.randomUUID()
+        repo.create(record(userId, "a".repeat(64), family))
+
+        val consumed = repo.rotate("a".repeat(64), now.plusSeconds(1), record(UUID.randomUUID(), "b".repeat(64)))
+
+        assertThat(consumed?.usedAt).isEqualTo(now.plusSeconds(1))
+        val successor = repo.findByHash("b".repeat(64))
+        assertThat(successor?.familyId).isEqualTo(family)
+        assertThat(successor?.userId).isEqualTo(userId)
+        assertThat(successor?.usedAt).isNull()
+    }
+
+    @Test
+    fun `rotate inserts nothing when the old token is not active`() = withTestDatabase { db -> // AC-7
+        val repo = ExposedRefreshTokenRepository(db)
+        repo.create(record(seedUser(db), "a".repeat(64)))
+        repo.markUsedIfActive("a".repeat(64), now.plusSeconds(1))
+
+        val result = repo.rotate("a".repeat(64), now.plusSeconds(2), record(UUID.randomUUID(), "b".repeat(64)))
+
+        assertThat(result).isNull()
+        assertThat(repo.findByHash("b".repeat(64))).isNull()
+    }
 }

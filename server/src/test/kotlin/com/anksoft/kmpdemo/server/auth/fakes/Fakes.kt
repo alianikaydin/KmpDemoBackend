@@ -63,6 +63,16 @@ class FakeRefreshTokenRepository : RefreshTokenRepository {
         }
     }
 
+    override suspend fun rotate(oldHash: String, now: Instant, newRecord: RefreshTokenRecord): RefreshTokenRecord? {
+        synchronized(lock) {
+            val consumed = records[oldHash] ?: return null
+            if (consumed.usedAt != null || consumed.revokedAt != null || !consumed.expiresAt.isAfter(now)) return null
+            records[oldHash] = consumed.copy(usedAt = now)
+            records[newRecord.tokenHash] = newRecord.copy(userId = consumed.userId, familyId = consumed.familyId)
+            return consumed
+        }
+    }
+
     override suspend fun findByHash(tokenHash: String): RefreshTokenRecord? = records[tokenHash]
 
     override suspend fun revokeFamily(familyId: UUID, now: Instant): Int {

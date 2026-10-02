@@ -13,6 +13,15 @@ interface RefreshTokenRepository {
      */
     suspend fun markUsedIfActive(tokenHash: String, now: Instant): RefreshTokenRecord?
 
+    /**
+     * Consumes the token like [markUsedIfActive] and inserts [newRecord] in the same transaction,
+     * so a concurrent loser that then revokes the family is guaranteed to see the new token.
+     * The inserted row inherits `userId` and `familyId` from the consumed record; those fields of
+     * [newRecord] are ignored. Returns the consumed record, or null (nothing inserted) when no
+     * active token matched.
+     */
+    suspend fun rotate(oldHash: String, now: Instant, newRecord: RefreshTokenRecord): RefreshTokenRecord?
+
     suspend fun findByHash(tokenHash: String): RefreshTokenRecord?
 
     /** Revokes every not yet revoked token of the family; returns how many were revoked. */

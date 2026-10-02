@@ -8,6 +8,11 @@ import com.anksoft.kmpdemo.contract.auth.AuthResponseDto
 import com.anksoft.kmpdemo.contract.error.ErrorCodes
 import com.anksoft.kmpdemo.contract.error.ErrorResponseDto
 import com.anksoft.kmpdemo.server.support.MutableClock
+import com.anksoft.kmpdemo.server.support.PostgresTestDb
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import com.anksoft.kmpdemo.server.support.logout
 import com.anksoft.kmpdemo.server.support.me
 import com.anksoft.kmpdemo.server.support.refresh
@@ -78,5 +83,24 @@ class RefreshRouteTest {
     @Test
     fun `empty refresh token returns 400`() = withTestApp { client -> // AC-3
         assertThat(client.refresh("").status).isEqualTo(HttpStatusCode.BadRequest)
+    }
+
+    @Test
+    fun `parallel refreshes of one token leave no active token in the family`() = withTestApp { client -> // AC-7
+        repeat(10) { iteration ->
+            val registered = client.registerOk(email = "race-$iteration@example.com")
+
+            val statuses = coroutineScope {
+                (1..6).map { async(Dispatchers.Default) { client.refresh(registered.refreshToken!!).status } }.awaitAll()
+            }
+
+            assertThat(statuses.count { it == HttpStatusCode.OK }).isEqualTo(1)
+            assertThat(statuses.count { it == HttpStatusCode.Unauthorized }).isEqualTo(5)
+            val active = PostgresTestDb.query(
+                "SELECT count(*) FROM refresh_tokens t JOIN users u ON u.id = t.user_id " +
+                    "WHERE u.email = 'race-$iteration@example.com' AND t.revoked_at IS NULL",
+            ) { it.getInt(1) }
+            assertThat(active).isEqualTo(0)
+        }
     }
 }
