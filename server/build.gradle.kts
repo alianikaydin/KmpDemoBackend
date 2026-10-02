@@ -44,7 +44,7 @@ dependencies {
 
     implementation(libs.spring.security.crypto)
     implementation(libs.bouncycastle.bcprov)
-    // spring-security-crypto declares no runtime dependency on spring-core but needs it (StringUtils, spring-jcl).
+    // spring-security-crypto declares no runtime dependency on spring-core but needs it (StringUtils); Spring 7 brings commons-logging for its logging.
     implementation(libs.spring.core)
 
     implementation(libs.logback.classic)

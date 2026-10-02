@@ -81,6 +81,14 @@ class RegisterRouteTest {
     }
 
     @Test
+    fun `email longer than 254 characters returns 400 and creates nothing`() = withTestApp { client -> // AC-3
+        val response = client.register("a".repeat(250) + "@b.com")
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.BadRequest)
+        assertThat(PostgresTestDb.countRows("users")).isEqualTo(0)
+    }
+
+    @Test
     fun `malformed json and missing fields return 400`() = withTestApp { client -> // AC-3
         listOf("{not json", "", "[]", """{"email":"a@b.com"}""", """{"password":"Password1"}""").forEach { raw ->
             val response = client.postRaw(AuthPaths.REGISTER, raw)

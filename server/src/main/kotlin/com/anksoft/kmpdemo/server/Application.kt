@@ -23,11 +23,11 @@ import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.routing.routing
+import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import kotlinx.coroutines.runBlocking
 import org.koin.core.module.Module
 import org.koin.ktor.ext.get
-import org.koin.ktor.ext.inject
 import org.koin.ktor.plugin.KoinIsolated
 import org.koin.logger.slf4jLogger
 import java.time.Clock
@@ -49,26 +49,26 @@ fun Application.module(
     extraModules: List<Module> = emptyList(),
 ) {
     val dataSource = createDataSource(settings)
-    if (settings.dbMigrateOnStart) {
-        try {
-            migrate(dataSource)
-        } catch (e: Exception) {
-            dataSource.close()
-            throw e
+    val db: Database
+    val authService: AuthService
+    try {
+        if (settings.dbMigrateOnStart) migrate(dataSource)
+        db = connect(dataSource)
+        install(KoinIsolated) {
+            slf4jLogger()
+            modules(listOf(serverModule(settings, db, clock)) + extraModules)
         }
+        authService = get<AuthService>()
+        runBlocking { authService.warmUp() }
+    } catch (e: Exception) {
+        // Startup failed after the pool was opened: release it instead of leaking connections.
+        dataSource.close()
+        throw e
     }
-    val db = connect(dataSource)
     monitor.subscribe(ApplicationStopped) {
         TransactionManager.closeAndUnregister(db)
         dataSource.close()
     }
-
-    install(KoinIsolated) {
-        slf4jLogger()
-        modules(listOf(serverModule(settings, db, clock)) + extraModules)
-    }
-    val authService by inject<AuthService>()
-    runBlocking { authService.warmUp() }
 
     configureHttp()
     configureSerialization()

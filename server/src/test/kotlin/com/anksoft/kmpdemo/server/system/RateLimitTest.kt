@@ -17,7 +17,7 @@ import kotlin.test.Test
 class RateLimitTest {
 
     @Test
-    fun `fourth auth request within a minute gets 429 with retry after`() { // AC-13
+    fun `fourth auth request within a minute gets 429 with retry after`() { // Plan decision 5 (rate limit)
         withTestApp(testSettings { it.copy(rateLimitAuthPerMinute = 3) }) { client ->
             repeat(3) { assertThat(client.login().status).isEqualTo(HttpStatusCode.Unauthorized) }
 
@@ -30,14 +30,14 @@ class RateLimitTest {
     }
 
     @Test
-    fun `health endpoints are not rate limited`() { // AC-16
+    fun `health endpoints are not rate limited`() { // AC-16, plan decision 5
         withTestApp(testSettings { it.copy(rateLimitAuthPerMinute = 1) }) { client ->
             repeat(5) { assertThat(client.get("/health/live").status).isEqualTo(HttpStatusCode.OK) }
         }
     }
 
     @Test
-    fun `rate limit of zero disables limiting`() = withTestApp { client -> // AC-4
+    fun `rate limit of zero disables limiting`() = withTestApp { client -> // Plan decision 5 (0 = disabled)
         repeat(30) { assertThat(client.login().status).isEqualTo(HttpStatusCode.Unauthorized) }
     }
 }

@@ -25,19 +25,19 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
   server:
     <<: *server
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
 
   # Second instance on the same database, for manual multi-instance checks.
   server-2:
     <<: *server
     profiles: [multi]
     ports:
-      - "8082:8081"
+      - "127.0.0.1:8082:8081"
 
 volumes:
   pgdata:

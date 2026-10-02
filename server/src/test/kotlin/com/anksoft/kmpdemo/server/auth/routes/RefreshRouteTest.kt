@@ -81,6 +81,11 @@ class RefreshRouteTest {
     }
 
     @Test
+    fun `refresh token longer than 256 characters returns 400`() = withTestApp { client -> // AC-3
+        assertThat(client.refresh("t".repeat(257)).status).isEqualTo(HttpStatusCode.BadRequest)
+    }
+
+    @Test
     fun `empty refresh token returns 400`() = withTestApp { client -> // AC-3
         assertThat(client.refresh("").status).isEqualTo(HttpStatusCode.BadRequest)
     }

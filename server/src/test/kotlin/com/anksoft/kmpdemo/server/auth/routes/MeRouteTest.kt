@@ -14,6 +14,8 @@ import com.anksoft.kmpdemo.server.support.TEST_JWT_SECRET
 import com.anksoft.kmpdemo.server.support.me
 import com.anksoft.kmpdemo.server.support.registerOk
 import com.anksoft.kmpdemo.server.support.withTestApp
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.client.call.body
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -61,6 +63,34 @@ class MeRouteTest {
 
         assertRejected(client.me(forgedBySecret), "wrong secret")
         assertRejected(client.me(wrongAudience), "wrong audience")
+    }
+
+    private fun handCraftedToken(issuer: String, algorithm: Algorithm): String = JWT.create()
+        .withIssuer(issuer)
+        .withAudience("kmp-demo-app")
+        .withSubject(UUID.randomUUID().toString())
+        .withExpiresAt(Instant.now().plus(Duration.ofMinutes(15)))
+        .sign(algorithm)
+
+    @Test
+    fun `token with the wrong issuer returns 401`() = withTestApp { client -> // AC-9
+        val token = handCraftedToken("someone-else", Algorithm.HMAC256(TEST_JWT_SECRET))
+
+        assertRejected(client.me(token), "wrong issuer")
+    }
+
+    @Test
+    fun `unsigned alg none token returns 401`() = withTestApp { client -> // AC-9
+        val token = handCraftedToken("kmp-demo-server", Algorithm.none())
+
+        assertRejected(client.me(token), "alg none")
+    }
+
+    @Test
+    fun `token signed with HS512 instead of HS256 returns 401`() = withTestApp { client -> // AC-9
+        val token = handCraftedToken("kmp-demo-server", Algorithm.HMAC512(TEST_JWT_SECRET))
+
+        assertRejected(client.me(token), "HS512")
     }
 
     @Test
