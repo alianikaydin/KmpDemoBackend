@@ -1,0 +1,201 @@
+openapi: 3.1.0
+info:
+  title: KmpDemo Auth API
+  version: 1.0.0
+  description: >
+    Authentication service for the KmpDemo app. Access tokens are short-lived
+    JWTs; refresh tokens are opaque, rotate on every use and are revoked as a
+    family when a used token is presented again.
+servers:
+  - url: http://localhost:8081/api/v1
+paths:
+  /auth/register:
+    post:
+      summary: Create an account
+      description: The e-mail is trimmed and lower-cased. Password needs 8-128 characters, one digit and one uppercase letter.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '200':
+          description: Account created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '409':
+          description: E-mail already registered (error code `email_taken`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /auth/login:
+    post:
+      summary: Log in with e-mail and password
+      description: Unknown e-mail and wrong password produce the same 401 response.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401':
+          description: Invalid credentials (error code `invalid_credentials`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /auth/refresh:
+    post:
+      summary: Exchange a refresh token for a new token pair
+      description: The presented token is consumed. Presenting a consumed token again revokes the whole token family.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshTokenRequest' }
+      responses:
+        '200':
+          description: New token pair and user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401':
+          description: Unknown, expired, revoked or already used token (error code `invalid_token`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /auth/me:
+    get:
+      summary: Current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: The authenticated user
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401':
+          description: Missing, malformed or expired access token (adds `WWW-Authenticate: Bearer`)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /auth/logout:
+    post:
+      summary: Revoke the token family of a refresh token
+      description: Idempotent; unknown or already revoked tokens also return 204.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshTokenRequest' }
+      responses:
+        '204': { description: Logged out }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, maxLength: 254, example: ali@example.com }
+        password: { type: string, minLength: 8, maxLength: 128, example: Password1 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, maxLength: 254 }
+        password: { type: string, maxLength: 128 }
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string, maxLength: 256 }
+    User:
+      type: object
+      required: [id, email]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string, description: Omitted when not set }
+    AuthResponse:
+      type: object
+      required: [access_token, user]
+      properties:
+        access_token: { type: string, description: JWT, valid 15 minutes by default }
+        refresh_token: { type: string, description: Opaque token, valid 30 days by default }
+        user: { $ref: '#/components/schemas/User' }
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          enum:
+            - invalid_request
+            - invalid_credentials
+            - invalid_token
+            - email_taken
+            - rate_limited
+            - payload_too_large
+            - unsupported_media_type
+            - not_found
+            - method_not_allowed
+            - internal_error
+        message: { type: string }
+  responses:
+    InvalidRequest:
+      description: Malformed JSON, missing fields or rule violations (error code `invalid_request`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PayloadTooLarge:
+      description: Body larger than 16 KiB (error code `payload_too_large`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: Content type is not application/json (error code `unsupported_media_type`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Too many requests from this client (error code `rate_limited`)
+      headers:
+        Retry-After:
+          schema: { type: integer }
+          description: Seconds until the client may retry
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalError:
+      description: Unexpected failure; the body never contains internal details (error code `internal_error`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }

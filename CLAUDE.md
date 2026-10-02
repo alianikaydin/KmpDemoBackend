@@ -6,12 +6,14 @@ Backend repo for KmpDemoApplication. Kotlin, Gradle 9.1.0, Ktor server.
 
 - `contract/` - KMP library published to GitHub Packages
   (`com.anksoft.kmpdemo:contract`). Package `com.anksoft.kmpdemo.contract`.
-- `server/` - Ktor app, package `com.anksoft.kmpdemo.server` (added in B2).
+- `server/` - Ktor app, package `com.anksoft.kmpdemo.server`. Layers:
+  routes -> service -> repository; schema changes only via Flyway migrations.
 
 ## Commands
 
-- Tests (local and CI): `./gradlew :contract:jvmTest` (from B2 on:
-  `./gradlew :contract:jvmTest :server:test :server:installDist --stacktrace`)
+- Tests (local and CI; Docker required for Testcontainers):
+  `./gradlew :contract:jvmTest :server:test :server:installDist --stacktrace`
+- Local environment: `scripts/server-up.sh` / `scripts/server-down.sh`
 
 ## Conventions
 

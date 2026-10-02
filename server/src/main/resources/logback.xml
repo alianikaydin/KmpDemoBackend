@@ -1,0 +1,21 @@
+<configuration>
+    <!-- LOG_FORMAT=plain (default) or json; secrets and bodies are never logged. -->
+    <appender name="plain" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%X{call_id:--}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <appender name="json" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder"/>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="${LOG_FORMAT:-plain}"/>
+    </root>
+
+    <logger name="org.jetbrains.exposed" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="INFO"/>
+    <logger name="io.netty" level="WARN"/>
+    <logger name="org.testcontainers" level="WARN"/>
+    <logger name="com.github.dockerjava" level="WARN"/>
+</configuration>

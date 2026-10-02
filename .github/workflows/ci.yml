@@ -3,6 +3,8 @@ on:
   pull_request:
   push:
     branches: [main]
+permissions:
+  contents: read
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -17,11 +19,17 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - name: Run contract tests
-        run: ./gradlew :contract:jvmTest --stacktrace
+      - name: Run contract and server tests
+        run: ./gradlew :contract:jvmTest :server:test :server:installDist --stacktrace
+      - name: Verify contract publication for all targets
+        run: ./gradlew :contract:publishToMavenLocal -PcontractVersion=0.0.0-ci --stacktrace
+      - name: Build server image
+        run: docker build -t kmp-demo-server:ci server/
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: contract/build/reports/tests/
+          path: |
+            server/build/reports/tests/
+            contract/build/reports/tests/

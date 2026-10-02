@@ -4,6 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.kotlinSerialization)
+    `maven-publish`
 }
 
 group = "com.anksoft.kmpdemo"
@@ -34,6 +35,17 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
             implementation(libs.assertk)
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/alianikaydin/KmpDemoBackend")
+            // Reads the GitHubPackagesUsername / GitHubPackagesPassword Gradle properties.
+            credentials(PasswordCredentials::class)
         }
     }
 }

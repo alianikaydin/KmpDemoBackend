@@ -17,5 +17,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "KmpDemoBackend"
 
-// ":server" is added in B2.
-include(":contract")
+include(":contract", ":server")
