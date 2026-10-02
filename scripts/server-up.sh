@@ -23,12 +23,13 @@ fi
 
 ./gradlew :server:installDist
 
-PROFILE_ARGS=()
 if [ "${1:-}" = "--profile" ]; then
-  PROFILE_ARGS=("$1" "${2:?--profile needs a name}")
+  PROFILE_NAME="${2:?--profile needs a name}"
   shift 2
+  docker compose --profile "$PROFILE_NAME" up -d --build "$@"
+else
+  docker compose up -d --build "$@"
 fi
-docker compose "${PROFILE_ARGS[@]}" up -d --build "$@"
 
 for _ in $(seq 1 60); do
   if curl -fsS http://localhost:8081/health/ready >/dev/null 2>&1; then
