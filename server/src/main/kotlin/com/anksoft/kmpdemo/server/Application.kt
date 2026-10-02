@@ -10,7 +10,10 @@ import com.anksoft.kmpdemo.server.db.createDataSource
 import com.anksoft.kmpdemo.server.db.migrate
 import com.anksoft.kmpdemo.server.db.ping
 import com.anksoft.kmpdemo.server.health.healthRoutes
+import com.anksoft.kmpdemo.server.plugins.configureCors
 import com.anksoft.kmpdemo.server.plugins.configureHttp
+import com.anksoft.kmpdemo.server.plugins.configureRateLimiting
+import com.anksoft.kmpdemo.server.plugins.openApiRoutes
 import com.anksoft.kmpdemo.server.plugins.configureSecurity
 import com.anksoft.kmpdemo.server.plugins.configureSerialization
 import com.anksoft.kmpdemo.server.plugins.configureStatusPages
@@ -70,9 +73,12 @@ fun Application.module(
     configureHttp()
     configureSerialization()
     configureStatusPages()
+    configureCors(settings.corsAllowedOrigins)
+    configureRateLimiting(settings)
     configureSecurity(get<JwtConfig>())
     routing {
         healthRoutes(databaseReady = { db.ping() })
-        authRoutes(authService)
+        authRoutes(authService, rateLimited = settings.rateLimitAuthPerMinute > 0)
+        openApiRoutes(settings.swaggerEnabled)
     }
 }

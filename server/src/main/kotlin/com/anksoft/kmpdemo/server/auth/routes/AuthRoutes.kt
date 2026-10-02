@@ -10,6 +10,7 @@ import com.anksoft.kmpdemo.server.auth.domain.AuthResult
 import com.anksoft.kmpdemo.server.auth.service.AuthService
 import com.anksoft.kmpdemo.server.plugins.JWT_AUTH
 import com.anksoft.kmpdemo.server.plugins.UserPrincipal
+import com.anksoft.kmpdemo.server.plugins.authRateLimited
 import com.anksoft.kmpdemo.server.plugins.respondError
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -25,34 +26,36 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 
 /** HTTP translation only; every business rule lives in [AuthService]. */
-fun Route.authRoutes(service: AuthService) {
+fun Route.authRoutes(service: AuthService, rateLimited: Boolean) {
     route("api/v1") {
-        post(AuthPaths.REGISTER) {
-            val request = call.receive<RegisterRequestDto>()
-            when (val result = service.register(request.email, request.password)) {
-                is AuthResult.Ok -> call.respond(result.value.toDto())
-                is AuthResult.Err -> call.respondAuthError(result.error)
+        authRateLimited(rateLimited) {
+            post(AuthPaths.REGISTER) {
+                val request = call.receive<RegisterRequestDto>()
+                when (val result = service.register(request.email, request.password)) {
+                    is AuthResult.Ok -> call.respond(result.value.toDto())
+                    is AuthResult.Err -> call.respondAuthError(result.error)
+                }
             }
-        }
-        post(AuthPaths.LOGIN) {
-            val request = call.receive<LoginRequestDto>()
-            when (val result = service.login(request.email, request.password)) {
-                is AuthResult.Ok -> call.respond(result.value.toDto())
-                is AuthResult.Err -> call.respondAuthError(result.error)
+            post(AuthPaths.LOGIN) {
+                val request = call.receive<LoginRequestDto>()
+                when (val result = service.login(request.email, request.password)) {
+                    is AuthResult.Ok -> call.respond(result.value.toDto())
+                    is AuthResult.Err -> call.respondAuthError(result.error)
+                }
             }
-        }
-        post(AuthPaths.REFRESH) {
-            val request = call.receive<RefreshTokenRequestDto>()
-            when (val result = service.refresh(request.refreshToken)) {
-                is AuthResult.Ok -> call.respond(result.value.toDto())
-                is AuthResult.Err -> call.respondAuthError(result.error)
+            post(AuthPaths.REFRESH) {
+                val request = call.receive<RefreshTokenRequestDto>()
+                when (val result = service.refresh(request.refreshToken)) {
+                    is AuthResult.Ok -> call.respond(result.value.toDto())
+                    is AuthResult.Err -> call.respondAuthError(result.error)
+                }
             }
-        }
-        post(AuthPaths.LOGOUT) {
-            val request = call.receive<RefreshTokenRequestDto>()
-            when (val result = service.logout(request.refreshToken)) {
-                is AuthResult.Ok -> call.respond(HttpStatusCode.NoContent)
-                is AuthResult.Err -> call.respondAuthError(result.error)
+            post(AuthPaths.LOGOUT) {
+                val request = call.receive<RefreshTokenRequestDto>()
+                when (val result = service.logout(request.refreshToken)) {
+                    is AuthResult.Ok -> call.respond(HttpStatusCode.NoContent)
+                    is AuthResult.Err -> call.respondAuthError(result.error)
+                }
             }
         }
         authenticate(JWT_AUTH) {

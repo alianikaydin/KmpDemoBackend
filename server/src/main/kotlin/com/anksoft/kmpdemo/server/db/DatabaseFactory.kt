@@ -9,6 +9,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.v1.core.DatabaseConfig
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -36,7 +37,12 @@ fun migrate(dataSource: DataSource) {
         .migrate()
 }
 
-fun connect(dataSource: DataSource): Database = Database.connect(dataSource)
+/**
+ * Exposed retries failed transactions three times by default, which would triple the
+ * connection timeout when the database is down; a failed request should fail fast instead.
+ */
+fun connect(dataSource: DataSource): Database =
+    Database.connect(dataSource, databaseConfig = DatabaseConfig { defaultMaxAttempts = 1 })
 
 /** Runs [block] in a transaction on the IO dispatcher against this explicit database. */
 suspend fun <T> Database.io(block: JdbcTransaction.() -> T): T =

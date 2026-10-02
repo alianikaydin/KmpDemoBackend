@@ -74,6 +74,9 @@ fun Application.configureStatusPages() {
         status(HttpStatusCode.NotFound) { call, _ ->
             call.respondError(HttpStatusCode.NotFound, ErrorCodes.NOT_FOUND)
         }
+        status(HttpStatusCode.TooManyRequests) { call, _ ->
+            call.respondError(HttpStatusCode.TooManyRequests, ErrorCodes.RATE_LIMITED)
+        }
         status(HttpStatusCode.MethodNotAllowed) { call, _ ->
             call.respondError(HttpStatusCode.MethodNotAllowed, ErrorCodes.METHOD_NOT_ALLOWED)
         }

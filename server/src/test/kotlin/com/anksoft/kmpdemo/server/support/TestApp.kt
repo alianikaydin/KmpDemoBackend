@@ -9,6 +9,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import org.koin.core.module.Module
 import java.time.Clock
 import java.time.Duration
 
@@ -45,20 +46,22 @@ fun withTestApp(
     resetDb: Boolean = true,
     clock: Clock = Clock.systemUTC(),
     extra: Application.() -> Unit = {},
+    extraModules: List<Module> = emptyList(),
     block: suspend ApplicationTestBuilder.(HttpClient) -> Unit,
 ) {
     if (resetDb) PostgresTestDb.reset()
-    runWithApp(settings, clock, extra, block)
+    runWithApp(settings, clock, extra, extraModules, block)
 }
 
 private fun runWithApp(
     settings: AppSettings,
     clock: Clock,
     extra: Application.() -> Unit,
+    extraModules: List<Module>,
     block: suspend ApplicationTestBuilder.(HttpClient) -> Unit,
 ) = testApplication {
     application {
-        module(settings, clock)
+        module(settings, clock, extraModules)
         extra()
     }
     val client = createClient { install(ContentNegotiation) { json(clientJson) } }
