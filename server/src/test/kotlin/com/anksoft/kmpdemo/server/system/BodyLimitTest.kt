@@ -5,7 +5,6 @@ import assertk.assertions.isEqualTo
 import com.anksoft.kmpdemo.contract.error.ErrorCodes
 import com.anksoft.kmpdemo.contract.error.ErrorResponseDto
 import com.anksoft.kmpdemo.server.plugins.MAX_BODY_BYTES
-import com.anksoft.kmpdemo.server.support.testSettings
 import com.anksoft.kmpdemo.server.support.withTestApp
 import io.ktor.client.call.body
 import io.ktor.client.request.post
@@ -18,7 +17,6 @@ import io.ktor.server.request.receiveText
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
-import java.time.Clock
 import kotlin.test.Test
 
 class BodyLimitTest {
@@ -29,7 +27,7 @@ class BodyLimitTest {
 
     @Test
     fun `body larger than 16 KiB is rejected with 413`() { // AC-3
-        withTestApp(testSettings(), Clock.systemUTC(), { echoRoute() }) { client ->
+        withTestApp(extra = { echoRoute() }) { client ->
             val response = client.post("/echo") {
                 contentType(ContentType.Application.Json)
                 setBody("x".repeat((MAX_BODY_BYTES + 1024).toInt()))
@@ -42,7 +40,7 @@ class BodyLimitTest {
 
     @Test
     fun `body within the limit is accepted`() {
-        withTestApp(testSettings(), Clock.systemUTC(), { echoRoute() }) { client ->
+        withTestApp(extra = { echoRoute() }) { client ->
             val response = client.post("/echo") {
                 contentType(ContentType.Application.Json)
                 setBody("x".repeat(1024))

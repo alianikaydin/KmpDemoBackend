@@ -23,9 +23,9 @@ val clientJson = Json {
 fun testSettings(transform: (AppSettings) -> AppSettings = { it }): AppSettings = transform(
     AppSettings(
         port = 0,
-        databaseUrl = "jdbc:postgresql://localhost:5432/unused",
-        databaseUser = "unused",
-        databasePassword = "unused",
+        databaseUrl = PostgresTestDb.jdbcUrl,
+        databaseUser = PostgresTestDb.username,
+        databasePassword = PostgresTestDb.password,
         databasePoolSize = 4,
         dbMigrateOnStart = true,
         jwtSecret = TEST_JWT_SECRET,
@@ -42,8 +42,19 @@ fun testSettings(transform: (AppSettings) -> AppSettings = { it }): AppSettings 
 
 fun withTestApp(
     settings: AppSettings = testSettings(),
+    resetDb: Boolean = true,
     clock: Clock = Clock.systemUTC(),
     extra: Application.() -> Unit = {},
+    block: suspend ApplicationTestBuilder.(HttpClient) -> Unit,
+) {
+    if (resetDb) PostgresTestDb.reset()
+    runWithApp(settings, clock, extra, block)
+}
+
+private fun runWithApp(
+    settings: AppSettings,
+    clock: Clock,
+    extra: Application.() -> Unit,
     block: suspend ApplicationTestBuilder.(HttpClient) -> Unit,
 ) = testApplication {
     application {

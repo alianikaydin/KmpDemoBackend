@@ -22,6 +22,16 @@ class HealthRouteTest {
     }
 
     @Test
+    fun `ready returns 200 UP when the database answers`() { // AC-16
+        withTestApp { client ->
+            val response = client.get("/health/ready")
+
+            assertThat(response.status).isEqualTo(HttpStatusCode.OK)
+            assertThat(response.bodyAsText()).isEqualTo("""{"status":"UP"}""")
+        }
+    }
+
+    @Test
     fun `response echoes a safe request id and replaces an unsafe one`() {
         withTestApp { client ->
             val echoed = client.get("/health/live") { header("X-Request-Id", "abc-123") }
