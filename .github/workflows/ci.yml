@@ -7,7 +7,7 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  contract-test:
+  server-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
