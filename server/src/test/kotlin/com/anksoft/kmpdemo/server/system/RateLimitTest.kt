@@ -5,7 +5,10 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import com.anksoft.kmpdemo.contract.error.ErrorCodes
 import com.anksoft.kmpdemo.contract.error.ErrorResponseDto
+import com.anksoft.kmpdemo.server.support.getAccountConsent
+import com.anksoft.kmpdemo.server.support.getTexts
 import com.anksoft.kmpdemo.server.support.login
+import com.anksoft.kmpdemo.server.support.registerOk
 import com.anksoft.kmpdemo.server.support.testSettings
 import com.anksoft.kmpdemo.server.support.withTestApp
 import io.ktor.client.call.body
@@ -33,6 +36,20 @@ class RateLimitTest {
     fun `health endpoints are not rate limited`() { // AC-16, plan decision 5
         withTestApp(testSettings { it.copy(rateLimitAuthPerMinute = 1) }) { client ->
             repeat(5) { assertThat(client.get("/health/live").status).isEqualTo(HttpStatusCode.OK) }
+        }
+    }
+
+    @Test
+    fun `consent endpoints are not rate limited`() { // ADR-15
+        withTestApp(testSettings { it.copy(rateLimitAuthPerMinute = 1) }) { client ->
+            repeat(5) { assertThat(client.getTexts("tr").status).isEqualTo(HttpStatusCode.OK) }
+
+            // The texts calls above did not use up the auth bucket: the first register still passes.
+            val session = client.registerOk()
+
+            repeat(5) {
+                assertThat(client.getAccountConsent(session.accessToken).status).isEqualTo(HttpStatusCode.OK)
+            }
         }
     }
 
