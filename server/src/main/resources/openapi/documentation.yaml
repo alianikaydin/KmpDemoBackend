@@ -12,7 +12,11 @@ paths:
   /auth/register:
     post:
       summary: Create an account
-      description: The e-mail is trimmed and lower-cased. Password needs 8-128 characters, one digit and one uppercase letter.
+      description: >
+        The e-mail is trimmed and lower-cased. Password needs 8-128 characters, one digit and one uppercase letter.
+        The optional `consent` decision is stored with the account in one transaction; an invalid decision
+        (400, or 422 for an unknown text version) creates no account. Without `consent` no decision is stored.
+        The response carries the resulting consent (`status: none` when no decision was sent).
       requestBody:
         required: true
         content:
@@ -32,6 +36,7 @@ paths:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
         '413': { $ref: '#/components/responses/PayloadTooLarge' }
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnknownConsentVersion' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
   /auth/login:
@@ -94,7 +99,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/User' }
         '401':
-          description: Missing, malformed or expired access token (adds `WWW-Authenticate: Bearer`)
+          description: 'Missing, malformed or expired access token (adds `WWW-Authenticate: Bearer`)'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -113,6 +118,73 @@ paths:
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /consent/texts:
+    get:
+      summary: Current consent text
+      description: >
+        Public. Returns the latest text version in the requested language. `lang` is trimmed, lower-cased and
+        reduced to its base language (`tr-TR` becomes `tr`); a missing or unsupported language falls back to `en`.
+        The `language` in the response is the language actually returned.
+      parameters:
+        - name: lang
+          in: query
+          required: false
+          schema: { type: string, example: tr }
+      responses:
+        '200':
+          description: Consent text
+          headers:
+            Cache-Control:
+              schema: { type: string, example: max-age=300 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConsentTexts' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /account/consent:
+    get:
+      summary: Current consent of the authenticated account
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: "The account's consent (status `none` before any decision)"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountConsent' }
+        '401':
+          description: 'Missing, malformed or expired access token (adds `WWW-Authenticate: Bearer`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      summary: Set the consent of the authenticated account
+      description: >
+        Idempotent. `text_version` and `text_language` must name an existing text (not necessarily the latest).
+        Repeating the latest decision stores nothing new. The decision time is the server's.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConsentDecision' }
+      responses:
+        '200':
+          description: The resulting consent
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccountConsent' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401':
+          description: 'Missing, malformed or expired access token, or the account no longer exists (adds `WWW-Authenticate: Bearer`)'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '422': { $ref: '#/components/responses/UnknownConsentVersion' }
+        '500': { $ref: '#/components/responses/InternalError' }
 components:
   securitySchemes:
     bearerAuth:
@@ -126,6 +198,7 @@ components:
       properties:
         email: { type: string, maxLength: 254, example: ali@example.com }
         password: { type: string, minLength: 8, maxLength: 128, example: Password1 }
+        consent: { $ref: '#/components/schemas/ConsentDecision' }
     LoginRequest:
       type: object
       required: [email, password]
@@ -151,6 +224,39 @@ components:
         access_token: { type: string, description: JWT, valid 15 minutes by default }
         refresh_token: { type: string, description: Opaque token, valid 30 days by default }
         user: { $ref: '#/components/schemas/User' }
+        consent:
+          description: Present in the register response only
+          $ref: '#/components/schemas/AccountConsent'
+    ConsentTexts:
+      type: object
+      required: [version, language, label, description, policy_url]
+      properties:
+        version: { type: integer, example: 1 }
+        language: { type: string, example: tr }
+        label: { type: string }
+        description: { type: string }
+        policy_url: { type: string }
+    ConsentDecision:
+      type: object
+      required: [status, text_version, text_language]
+      properties:
+        status: { type: string, enum: [granted, denied] }
+        text_version: { type: integer, example: 1 }
+        text_language: { type: string, example: tr }
+    AccountConsent:
+      type: object
+      required: [status, reconsent_required]
+      properties:
+        status:
+          type: string
+          enum: [none, granted, denied]
+          description: Clients must treat an unknown value as `none`
+        text_version: { type: integer }
+        text_language: { type: string }
+        decided_at: { type: string, format: date-time, description: Server time, ISO-8601 UTC }
+        reconsent_required:
+          type: boolean
+          description: True only for a granted decision when a later text version is flagged as requiring new consent; the decision itself is never changed
     ErrorResponse:
       type: object
       required: [error, message]
@@ -162,6 +268,7 @@ components:
             - invalid_credentials
             - invalid_token
             - email_taken
+            - unknown_consent_version
             - rate_limited
             - payload_too_large
             - unsupported_media_type
@@ -172,6 +279,11 @@ components:
   responses:
     InvalidRequest:
       description: Malformed JSON, missing fields or rule violations (error code `invalid_request`)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnknownConsentVersion:
+      description: The consent text version or language does not exist (error code `unknown_consent_version`)
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }

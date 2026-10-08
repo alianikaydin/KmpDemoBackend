@@ -1,10 +1,13 @@
 package com.anksoft.kmpdemo.server.system
 
 import assertk.assertThat
+import assertk.assertions.contains
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import com.anksoft.kmpdemo.server.support.testSettings
 import com.anksoft.kmpdemo.server.support.withTestApp
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.options
 import io.ktor.http.HttpHeaders
@@ -42,5 +45,27 @@ class CorsTest {
 
             assertThat(response.headers[HttpHeaders.AccessControlAllowOrigin]).isNull()
         }
+    }
+
+    @Test
+    fun `put preflight for account consent is allowed`() = withTestApp { client -> // AC-30
+        val response = client.options("/api/v1/account/consent") {
+            header(HttpHeaders.Origin, "http://localhost:8080")
+            header(HttpHeaders.AccessControlRequestMethod, "PUT")
+            header(HttpHeaders.AccessControlRequestHeaders, "authorization, content-type")
+        }
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.OK)
+        assertThat(response.headers[HttpHeaders.AccessControlAllowMethods]).isNotNull().contains("PUT")
+    }
+
+    @Test
+    fun `www authenticate is exposed to browser clients`() = withTestApp { client -> // AC-30
+        val response = client.get("/api/v1/account/consent") {
+            header(HttpHeaders.Origin, "http://localhost:8080")
+        }
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.Unauthorized)
+        assertThat(response.headers[HttpHeaders.AccessControlExposeHeaders]).isNotNull().contains("WWW-Authenticate")
     }
 }
