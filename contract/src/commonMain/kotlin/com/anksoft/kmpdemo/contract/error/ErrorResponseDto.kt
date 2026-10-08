@@ -19,5 +19,6 @@ public object ErrorCodes {
     public const val UNSUPPORTED_MEDIA_TYPE: String = "unsupported_media_type"
     public const val NOT_FOUND: String = "not_found"
     public const val METHOD_NOT_ALLOWED: String = "method_not_allowed"
+    public const val UNKNOWN_CONSENT_VERSION: String = "unknown_consent_version"
     public const val INTERNAL_ERROR: String = "internal_error"
 }

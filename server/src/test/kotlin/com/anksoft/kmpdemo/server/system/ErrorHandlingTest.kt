@@ -4,12 +4,15 @@ import assertk.assertThat
 import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
 import assertk.assertions.isLessThan
+import com.anksoft.kmpdemo.contract.consent.ConsentDecisionDto
 import com.anksoft.kmpdemo.server.auth.domain.NewUser
 import com.anksoft.kmpdemo.server.auth.domain.User
 import com.anksoft.kmpdemo.server.auth.domain.UserCredentials
 import com.anksoft.kmpdemo.server.auth.repository.UserRepository
+import com.anksoft.kmpdemo.server.consent.domain.NewConsentDecision
 import com.anksoft.kmpdemo.server.support.LogCapture
 import com.anksoft.kmpdemo.server.support.login
+import com.anksoft.kmpdemo.server.support.register
 import com.anksoft.kmpdemo.server.support.testSettings
 import com.anksoft.kmpdemo.server.support.withTestApp
 import io.ktor.client.request.get
@@ -27,7 +30,7 @@ class ErrorHandlingTest {
             throw IllegalStateException("SELECT * FROM users WHERE password = 'LeakyDetail1'")
 
         override suspend fun findById(id: UUID): User? = throw IllegalStateException("boom")
-        override suspend fun create(user: NewUser): User? = throw IllegalStateException("boom")
+        override suspend fun create(user: NewUser, initialConsent: NewConsentDecision?): User? = throw IllegalStateException("boom")
     }
 
     @Test
@@ -73,5 +76,14 @@ class ErrorHandlingTest {
         } finally {
             container.stop()
         }
+    }
+
+    @Test
+    fun `unknown consent version returns the fixed 422 body`() = withTestApp { client -> // AC-5
+        val response = client.register(consent = ConsentDecisionDto("granted", 999, "tr"))
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.UnprocessableEntity)
+        assertThat(response.bodyAsText())
+            .isEqualTo("""{"error":"unknown_consent_version","message":"Unknown consent text version."}""")
     }
 }

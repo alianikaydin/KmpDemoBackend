@@ -1,20 +1,26 @@
 package com.anksoft.kmpdemo.server.auth.routes
 
 import assertk.assertThat
+import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isNotEmpty
 import com.anksoft.kmpdemo.contract.auth.AuthPaths
 import com.anksoft.kmpdemo.contract.auth.AuthResponseDto
+import com.anksoft.kmpdemo.contract.consent.ConsentDecisionDto
+import com.anksoft.kmpdemo.contract.consent.ConsentStatus
 import com.anksoft.kmpdemo.contract.error.ErrorCodes
 import com.anksoft.kmpdemo.contract.error.ErrorResponseDto
 import com.anksoft.kmpdemo.server.support.PostgresTestDb
+import com.anksoft.kmpdemo.server.support.login
 import com.anksoft.kmpdemo.server.support.postRaw
+import com.anksoft.kmpdemo.server.support.refresh
 import com.anksoft.kmpdemo.server.support.register
 import com.anksoft.kmpdemo.server.support.withTestApp
 import io.ktor.client.call.body
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -108,5 +114,67 @@ class RegisterRouteTest {
 
         assertThat(response.status).isEqualTo(HttpStatusCode.UnsupportedMediaType)
         assertThat(PostgresTestDb.countRows("users")).isEqualTo(0)
+    }
+
+    @Test
+    fun `register with granted consent stores the decision and returns it`() = withTestApp { client -> // AC-3
+        val response = client.register(consent = ConsentDecisionDto("granted", 1, "tr"))
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.OK)
+        val consent = response.body<AuthResponseDto>().consent
+        assertThat(consent?.status).isEqualTo(ConsentStatus.GRANTED)
+        assertThat(consent?.textVersion).isEqualTo(1)
+        assertThat(consent?.textLanguage).isEqualTo("tr")
+        assertThat(consent?.decidedAt).isNotNull()
+        assertThat(PostgresTestDb.countRows("consent_decisions")).isEqualTo(1)
+        assertThat(PostgresTestDb.query("SELECT source FROM consent_decisions") { it.getString(1) }).isEqualTo("register")
+    }
+
+    @Test
+    fun `register with denied consent stores the decision`() = withTestApp { client -> // AC-2
+        val response = client.register(consent = ConsentDecisionDto("denied", 1, "en"))
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.OK)
+        assertThat(response.body<AuthResponseDto>().consent?.status).isEqualTo(ConsentStatus.DENIED)
+        assertThat(PostgresTestDb.countRows("consent_decisions")).isEqualTo(1)
+    }
+
+    @Test
+    fun `an old register body without consent still works and answers none`() = withTestApp { client -> // AC-4
+        val response = client.postRaw(AuthPaths.REGISTER, """{"email":"old@example.com","password":"Password1"}""")
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.OK)
+        assertThat(response.body<AuthResponseDto>().consent?.status).isEqualTo(ConsentStatus.NONE)
+        assertThat(PostgresTestDb.countRows("users")).isEqualTo(1)
+        assertThat(PostgresTestDb.countRows("consent_decisions")).isEqualTo(0)
+    }
+
+    @Test
+    fun `register with an unknown consent version returns 422 and creates no account`() = withTestApp { client -> // AC-5
+        val response = client.register(consent = ConsentDecisionDto("granted", 999, "tr"))
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.UnprocessableEntity)
+        assertThat(response.body<ErrorResponseDto>().error).isEqualTo(ErrorCodes.UNKNOWN_CONSENT_VERSION)
+        assertThat(PostgresTestDb.countRows("users")).isEqualTo(0)
+    }
+
+    @Test
+    fun `register with an invalid consent status returns 400 and creates no account`() = withTestApp { client -> // AC-5
+        val response = client.register(consent = ConsentDecisionDto("maybe", 1, "tr"))
+
+        assertThat(response.status).isEqualTo(HttpStatusCode.BadRequest)
+        assertThat(response.body<ErrorResponseDto>().error).isEqualTo(ErrorCodes.INVALID_REQUEST)
+        assertThat(PostgresTestDb.countRows("users")).isEqualTo(0)
+    }
+
+    @Test
+    fun `login and refresh responses leave the consent out`() = withTestApp { client -> // AC-17
+        val registered = client.register(consent = ConsentDecisionDto("granted", 1, "tr")).body<AuthResponseDto>()
+
+        val login = client.login().bodyAsText()
+        val refreshed = client.refresh(registered.refreshToken!!).bodyAsText()
+
+        assertThat(login).doesNotContain("consent")
+        assertThat(refreshed).doesNotContain("consent")
     }
 }

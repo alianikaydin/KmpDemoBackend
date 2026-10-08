@@ -10,6 +10,7 @@ import com.anksoft.kmpdemo.server.auth.domain.NewUser
 import com.anksoft.kmpdemo.server.auth.domain.User
 import com.anksoft.kmpdemo.server.auth.domain.UserCredentials
 import com.anksoft.kmpdemo.server.auth.repository.UserRepository
+import com.anksoft.kmpdemo.server.consent.domain.NewConsentDecision
 import com.anksoft.kmpdemo.server.support.LogCapture
 import com.anksoft.kmpdemo.server.support.PostgresTestDb
 import com.anksoft.kmpdemo.server.support.login
@@ -46,7 +47,7 @@ class SecretsNotLeakedTest {
         val failing = object : UserRepository {
             override suspend fun findByEmail(email: String): UserCredentials? = throw IllegalStateException("db down")
             override suspend fun findById(id: UUID): User? = throw IllegalStateException("db down")
-            override suspend fun create(user: NewUser): User? = throw IllegalStateException("db down")
+            override suspend fun create(user: NewUser, initialConsent: NewConsentDecision?): User? = throw IllegalStateException("db down")
         }
 
         LogCapture().use { logs ->

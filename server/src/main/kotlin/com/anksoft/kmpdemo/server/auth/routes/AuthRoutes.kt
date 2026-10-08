@@ -8,6 +8,7 @@ import com.anksoft.kmpdemo.contract.error.ErrorCodes
 import com.anksoft.kmpdemo.server.auth.domain.AuthError
 import com.anksoft.kmpdemo.server.auth.domain.AuthResult
 import com.anksoft.kmpdemo.server.auth.service.AuthService
+import com.anksoft.kmpdemo.server.consent.routes.toInput
 import com.anksoft.kmpdemo.server.plugins.JWT_AUTH
 import com.anksoft.kmpdemo.server.plugins.UserPrincipal
 import com.anksoft.kmpdemo.server.plugins.authRateLimited
@@ -31,7 +32,7 @@ fun Route.authRoutes(service: AuthService, rateLimited: Boolean) {
         authRateLimited(rateLimited) {
             post(AuthPaths.REGISTER) {
                 val request = call.receive<RegisterRequestDto>()
-                when (val result = service.register(request.email, request.password)) {
+                when (val result = service.register(request.email, request.password, request.consent?.toInput())) {
                     is AuthResult.Ok -> call.respond(result.value.toDto())
                     is AuthResult.Err -> call.respondAuthError(result.error)
                 }
@@ -78,4 +79,6 @@ private suspend fun ApplicationCall.respondAuthError(error: AuthError) = when (e
     AuthError.EMAIL_TAKEN -> respondError(HttpStatusCode.Conflict, ErrorCodes.EMAIL_TAKEN)
     AuthError.INVALID_CREDENTIALS -> respondError(HttpStatusCode.Unauthorized, ErrorCodes.INVALID_CREDENTIALS)
     AuthError.INVALID_TOKEN -> respondError(HttpStatusCode.Unauthorized, ErrorCodes.INVALID_TOKEN)
+    AuthError.UNKNOWN_CONSENT_VERSION ->
+        respondError(HttpStatusCode.UnprocessableEntity, ErrorCodes.UNKNOWN_CONSENT_VERSION)
 }

@@ -1,5 +1,7 @@
 package com.anksoft.kmpdemo.contract.auth
 
+import com.anksoft.kmpdemo.contract.consent.AccountConsentDto
+import com.anksoft.kmpdemo.contract.consent.ConsentDecisionDto
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -19,6 +21,7 @@ public data class LoginRequestDto(
 public data class RegisterRequestDto(
     val email: String,
     val password: String,
+    val consent: ConsentDecisionDto? = null,
 )
 
 @Serializable
@@ -31,6 +34,8 @@ public data class AuthResponseDto(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String? = null,
     val user: UserDto,
+    /** Filled by register only; login and refresh leave it out. */
+    val consent: AccountConsentDto? = null,
 )
 
 @Serializable

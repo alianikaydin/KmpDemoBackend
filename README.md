@@ -89,12 +89,31 @@ Base path `/api/v1/`; full description in
 
 | Endpoint | Description |
 |---|---|
-| `POST auth/register` | create an account, returns tokens and user |
+| `POST auth/register` | create an account (optional `consent`), returns tokens, user and consent |
 | `POST auth/login` | log in, returns tokens and user |
 | `POST auth/refresh` | rotate a refresh token, returns a new pair |
 | `GET auth/me` | current user (Bearer access token) |
 | `POST auth/logout` | revoke the refresh token family (204) |
+| `GET consent/texts?lang=` | current consent text, public (`lang` falls back to `en`) |
+| `GET account/consent` | consent of the authenticated account (Bearer) |
+| `PUT account/consent` | set the consent of the authenticated account (Bearer, idempotent) |
 | `GET /health/live`, `GET /health/ready` | liveness / readiness (database) |
+
+### Consent texts
+
+Texts live in the database (`consent_text_versions`, `consent_texts`) and are
+published by Flyway migrations:
+
+- A new text is a new migration (`V5__consent_texts_v2.sql`, ...). A published
+  migration is never edited; fix mistakes with a later one.
+- Every version needs an `en` text; other languages fall back to it.
+- `requires_reconsent = true` on a version makes `reconsent_required` true for
+  accounts whose latest decision is `granted` on an older version. The stored
+  decision is not changed.
+- Decisions are append-only (`consent_decisions`), so the history proves which
+  text (version and language) a user saw and when they decided.
+- The seed text (`V4`) is a placeholder; the server logs a warning at startup
+  while the latest text still points to `example.com`.
 
 ## Contract releases
 

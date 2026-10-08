@@ -14,9 +14,12 @@ fun Application.configureCors(allowedOrigins: List<String>) {
         allowOrigins { it in allowed }
         allowMethod(HttpMethod.Get)
         allowMethod(HttpMethod.Post)
+        allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Options)
         allowHeader(HttpHeaders.ContentType)
         allowHeader(HttpHeaders.Authorization)
+        // Lets a browser client recognise a 401 challenge (ADR-15).
+        exposeHeader(HttpHeaders.WWWAuthenticate)
         allowCredentials = false
         maxAgeInSeconds = 600
     }

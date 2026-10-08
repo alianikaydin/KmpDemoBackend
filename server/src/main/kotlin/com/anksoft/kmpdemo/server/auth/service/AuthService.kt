@@ -12,6 +12,12 @@ import com.anksoft.kmpdemo.server.auth.domain.RefreshTokenRecord
 import com.anksoft.kmpdemo.server.auth.domain.User
 import com.anksoft.kmpdemo.server.auth.repository.RefreshTokenRepository
 import com.anksoft.kmpdemo.server.auth.repository.UserRepository
+import com.anksoft.kmpdemo.server.consent.domain.AccountConsent
+import com.anksoft.kmpdemo.server.consent.domain.ConsentDecisionInput
+import com.anksoft.kmpdemo.server.consent.domain.ConsentError
+import com.anksoft.kmpdemo.server.consent.domain.ConsentResult
+import com.anksoft.kmpdemo.server.consent.domain.ConsentSource
+import com.anksoft.kmpdemo.server.consent.service.ConsentService
 import org.slf4j.LoggerFactory
 import java.time.Clock
 import java.time.Duration
@@ -30,6 +36,7 @@ class AuthService(
     private val refreshGenerator: RefreshTokenGenerator,
     private val clock: Clock,
     private val refreshTtl: Duration,
+    private val consents: ConsentService,
 ) {
     private val log = LoggerFactory.getLogger(AuthService::class.java)
 
@@ -41,7 +48,15 @@ class AuthService(
         dummyHash = hasher.hash(UUID.randomUUID().toString())
     }
 
-    suspend fun register(rawEmail: String, password: String): AuthResult<AuthSession> {
+    /**
+     * Creates the account and, when [consent] is given, its first consent decision in the same
+     * transaction. An invalid decision rejects the whole registration before any hashing or writing.
+     */
+    suspend fun register(
+        rawEmail: String,
+        password: String,
+        consent: ConsentDecisionInput? = null,
+    ): AuthResult<AuthSession> {
         val email = CredentialRules.normalizeEmail(rawEmail)
         if (email.length > CredentialRules.MAX_EMAIL_LENGTH ||
             !CredentialRules.isValidEmail(email) ||
@@ -49,11 +64,26 @@ class AuthService(
         ) {
             return AuthResult.Err(AuthError.INVALID_INPUT)
         }
+        val prepared = if (consent == null) {
+            null
+        } else {
+            when (val result = consents.prepareDecision(consent, ConsentSource.REGISTER)) {
+                is ConsentResult.Ok -> result.value
+                is ConsentResult.Err -> return AuthResult.Err(
+                    when (result.error) {
+                        ConsentError.UNKNOWN_TEXT_VERSION -> AuthError.UNKNOWN_CONSENT_VERSION
+                        // prepareDecision never reports ACCOUNT_NOT_FOUND; there is no account yet.
+                        ConsentError.INVALID_INPUT, ConsentError.ACCOUNT_NOT_FOUND -> AuthError.INVALID_INPUT
+                    },
+                )
+            }
+        }
         if (users.findByEmail(email) != null) return AuthResult.Err(AuthError.EMAIL_TAKEN)
 
-        val created = users.create(NewUser(UUID.randomUUID(), email, hasher.hash(password)))
+        val created = users.create(NewUser(UUID.randomUUID(), email, hasher.hash(password)), prepared)
             ?: return AuthResult.Err(AuthError.EMAIL_TAKEN)
-        return AuthResult.Ok(newSession(created, UUID.randomUUID()))
+        val accountConsent = prepared?.let { consents.describe(it) } ?: AccountConsent.NONE
+        return AuthResult.Ok(newSession(created, UUID.randomUUID()).copy(consent = accountConsent))
     }
 
     suspend fun login(rawEmail: String, password: String): AuthResult<AuthSession> {
