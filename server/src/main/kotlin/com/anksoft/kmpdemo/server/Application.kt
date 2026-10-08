@@ -4,6 +4,8 @@ import com.anksoft.kmpdemo.server.auth.routes.authRoutes
 import com.anksoft.kmpdemo.server.auth.security.JwtConfig
 import com.anksoft.kmpdemo.server.auth.service.AuthService
 import com.anksoft.kmpdemo.server.config.AppSettings
+import com.anksoft.kmpdemo.server.consent.routes.consentRoutes
+import com.anksoft.kmpdemo.server.consent.service.ConsentService
 import com.anksoft.kmpdemo.server.di.serverModule
 import com.anksoft.kmpdemo.server.db.connect
 import com.anksoft.kmpdemo.server.db.createDataSource
@@ -51,6 +53,7 @@ fun Application.module(
     val dataSource = createDataSource(settings)
     val db: Database
     val authService: AuthService
+    val consentService: ConsentService
     try {
         if (settings.dbMigrateOnStart) migrate(dataSource)
         db = connect(dataSource)
@@ -59,7 +62,11 @@ fun Application.module(
             modules(listOf(serverModule(settings, db, clock)) + extraModules)
         }
         authService = get<AuthService>()
-        runBlocking { authService.warmUp() }
+        consentService = get<ConsentService>()
+        runBlocking {
+            authService.warmUp()
+            consentService.warnIfPlaceholderTexts()
+        }
     } catch (e: Exception) {
         // Startup failed after the pool was opened: release it instead of leaking connections.
         dataSource.close()
@@ -79,6 +86,7 @@ fun Application.module(
     routing {
         healthRoutes(databaseReady = { db.ping() })
         authRoutes(authService, rateLimited = settings.rateLimitAuthPerMinute > 0)
+        consentRoutes(consentService)
         openApiRoutes(settings.swaggerEnabled)
     }
 }
