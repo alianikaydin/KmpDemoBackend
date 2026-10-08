@@ -8,6 +8,7 @@ import com.anksoft.kmpdemo.server.auth.domain.NewUser
 import com.anksoft.kmpdemo.server.auth.domain.User
 import com.anksoft.kmpdemo.server.auth.domain.UserCredentials
 import com.anksoft.kmpdemo.server.auth.repository.UserRepository
+import com.anksoft.kmpdemo.server.consent.domain.NewConsentDecision
 import com.anksoft.kmpdemo.server.support.LogCapture
 import com.anksoft.kmpdemo.server.support.login
 import com.anksoft.kmpdemo.server.support.testSettings
@@ -27,7 +28,7 @@ class ErrorHandlingTest {
             throw IllegalStateException("SELECT * FROM users WHERE password = 'LeakyDetail1'")
 
         override suspend fun findById(id: UUID): User? = throw IllegalStateException("boom")
-        override suspend fun create(user: NewUser): User? = throw IllegalStateException("boom")
+        override suspend fun create(user: NewUser, initialConsent: NewConsentDecision?): User? = throw IllegalStateException("boom")
     }
 
     @Test

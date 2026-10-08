@@ -13,6 +13,11 @@ import com.anksoft.kmpdemo.server.auth.security.JwtConfig
 import com.anksoft.kmpdemo.server.auth.security.SecureRefreshTokenGenerator
 import com.anksoft.kmpdemo.server.auth.service.AuthService
 import com.anksoft.kmpdemo.server.config.AppSettings
+import com.anksoft.kmpdemo.server.consent.data.ExposedConsentDecisionRepository
+import com.anksoft.kmpdemo.server.consent.data.ExposedConsentTextRepository
+import com.anksoft.kmpdemo.server.consent.repository.ConsentDecisionRepository
+import com.anksoft.kmpdemo.server.consent.repository.ConsentTextRepository
+import com.anksoft.kmpdemo.server.consent.service.ConsentService
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -27,7 +32,10 @@ fun serverModule(settings: AppSettings, db: Database, clock: Clock): Module = mo
     single<RefreshTokenGenerator> { SecureRefreshTokenGenerator() }
     single<UserRepository> { ExposedUserRepository(db) }
     single<RefreshTokenRepository> { ExposedRefreshTokenRepository(db) }
+    single<ConsentTextRepository> { ExposedConsentTextRepository(db) }
+    single<ConsentDecisionRepository> { ExposedConsentDecisionRepository(db) }
+    single { ConsentService(get(), get(), clock) }
     single {
-        AuthService(get(), get(), get(), get(), get(), clock, settings.refreshTokenTtl)
+        AuthService(get(), get(), get(), get(), get(), clock, settings.refreshTokenTtl, consents = get())
     }
 }

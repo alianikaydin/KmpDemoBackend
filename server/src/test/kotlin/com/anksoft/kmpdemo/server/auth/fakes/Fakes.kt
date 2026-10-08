@@ -8,6 +8,8 @@ import com.anksoft.kmpdemo.server.auth.domain.User
 import com.anksoft.kmpdemo.server.auth.domain.UserCredentials
 import com.anksoft.kmpdemo.server.auth.repository.RefreshTokenRepository
 import com.anksoft.kmpdemo.server.auth.repository.UserRepository
+import com.anksoft.kmpdemo.server.consent.domain.NewConsentDecision
+import com.anksoft.kmpdemo.server.consent.fakes.FakeConsentDecisionRepository
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -33,16 +35,18 @@ class FakeAccessTokenIssuer : AccessTokenIssuer {
     override fun issue(userId: UUID, now: Instant): String = "access:$userId:${counter.incrementAndGet()}"
 }
 
-class FakeUserRepository : UserRepository {
+class FakeUserRepository(private val consentDecisions: FakeConsentDecisionRepository? = null) : UserRepository {
     val stored = ConcurrentHashMap<String, UserCredentials>()
 
     override suspend fun findByEmail(email: String): UserCredentials? = stored[email]
 
     override suspend fun findById(id: UUID): User? = stored.values.firstOrNull { it.user.id == id }?.user
 
-    override suspend fun create(user: NewUser): User? {
+    override suspend fun create(user: NewUser, initialConsent: NewConsentDecision?): User? {
         val created = User(user.id, user.email, null)
-        return if (stored.putIfAbsent(user.email, UserCredentials(created, user.passwordHash)) == null) created else null
+        if (stored.putIfAbsent(user.email, UserCredentials(created, user.passwordHash)) != null) return null
+        if (initialConsent != null) consentDecisions?.add(user.id, initialConsent)
+        return created
     }
 }
 

@@ -6,6 +6,7 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotEqualTo
 import assertk.assertions.isNotNull
+import assertk.assertions.isNull
 import com.anksoft.kmpdemo.server.auth.domain.AuthError
 import com.anksoft.kmpdemo.server.auth.domain.AuthResult
 import com.anksoft.kmpdemo.server.auth.domain.AuthSession
@@ -14,6 +15,14 @@ import com.anksoft.kmpdemo.server.auth.fakes.FakePasswordHasher
 import com.anksoft.kmpdemo.server.auth.fakes.FakeRefreshTokenRepository
 import com.anksoft.kmpdemo.server.auth.fakes.FakeUserRepository
 import com.anksoft.kmpdemo.server.auth.security.SecureRefreshTokenGenerator
+import com.anksoft.kmpdemo.server.consent.domain.AccountConsent
+import com.anksoft.kmpdemo.server.consent.domain.ConsentDecisionInput
+import com.anksoft.kmpdemo.server.consent.domain.ConsentDecisionStatus
+import com.anksoft.kmpdemo.server.consent.domain.ConsentSource
+import com.anksoft.kmpdemo.server.consent.domain.NewConsentDecision
+import com.anksoft.kmpdemo.server.consent.fakes.FakeConsentDecisionRepository
+import com.anksoft.kmpdemo.server.consent.fakes.FakeConsentTextRepository
+import com.anksoft.kmpdemo.server.consent.service.ConsentService
 import com.anksoft.kmpdemo.server.support.MutableClock
 import kotlinx.coroutines.test.runTest
 import java.time.Duration
@@ -22,12 +31,16 @@ import kotlin.test.Test
 
 class AuthServiceTest {
 
-    private val users = FakeUserRepository()
+    private val consentDecisions = FakeConsentDecisionRepository()
+    private val consentTexts = FakeConsentTextRepository().apply { publish(1) }
+    private val users = FakeUserRepository(consentDecisions)
     private val tokens = FakeRefreshTokenRepository()
     private val hasher = FakePasswordHasher()
     private val clock = MutableClock()
+    private val consents = ConsentService(consentTexts, consentDecisions, clock)
     private val service = AuthService(
         users, tokens, hasher, FakeAccessTokenIssuer(), SecureRefreshTokenGenerator(), clock, Duration.ofDays(30),
+        consents,
     )
 
     private fun AuthResult<AuthSession>.ok(): AuthSession =
@@ -67,10 +80,14 @@ class AuthServiceTest {
     fun `register maps a lost unique race to email taken`() = runTest { // AC-2
         val racing = object : com.anksoft.kmpdemo.server.auth.repository.UserRepository by users {
             override suspend fun findByEmail(email: String) = null
-            override suspend fun create(user: com.anksoft.kmpdemo.server.auth.domain.NewUser) = null
+            override suspend fun create(
+                user: com.anksoft.kmpdemo.server.auth.domain.NewUser,
+                initialConsent: NewConsentDecision?,
+            ) = null
         }
         val racingService = AuthService(
             racing, tokens, hasher, FakeAccessTokenIssuer(), SecureRefreshTokenGenerator(), clock, Duration.ofDays(30),
+            consents,
         )
 
         assertThat(racingService.register("a@b.com", "Password1").errorOrNull()).isEqualTo(AuthError.EMAIL_TAKEN)
@@ -92,6 +109,70 @@ class AuthServiceTest {
         }
         assertThat(users.stored).hasSize(0)
         assertThat(hasher.hashCalls.get()).isEqualTo(0)
+    }
+
+    @Test
+    fun `register without consent returns a none consent and stores no decision`() = runTest { // AC-4
+        val session = service.register("a@b.com", "Password1").ok()
+
+        assertThat(session.consent).isEqualTo(AccountConsent.NONE)
+        assertThat(consentDecisions.rows).hasSize(0)
+    }
+
+    @Test
+    fun `register with consent stores the decision and returns it`() = runTest { // AC-2, AC-3
+        val session = service.register("a@b.com", "Password1", ConsentDecisionInput("granted", 1, "tr")).ok()
+
+        assertThat(session.consent?.status).isEqualTo(ConsentDecisionStatus.GRANTED)
+        assertThat(session.consent?.textVersion).isEqualTo(1)
+        assertThat(session.consent?.textLanguage).isEqualTo("tr")
+        assertThat(consentDecisions.rows).hasSize(1)
+        assertThat(consentDecisions.rows.single().second.source).isEqualTo(ConsentSource.REGISTER)
+    }
+
+    @Test
+    fun `register with a denied decision stores it`() = runTest { // AC-2
+        val session = service.register("a@b.com", "Password1", ConsentDecisionInput("denied", 1, "en")).ok()
+
+        assertThat(session.consent?.status).isEqualTo(ConsentDecisionStatus.DENIED)
+        assertThat(consentDecisions.rows).hasSize(1)
+    }
+
+    @Test
+    fun `register with an unknown consent version creates no account and skips hashing`() = runTest { // AC-5
+        val result = service.register("a@b.com", "Password1", ConsentDecisionInput("granted", 999, "tr"))
+
+        assertThat(result.errorOrNull()).isEqualTo(AuthError.UNKNOWN_CONSENT_VERSION)
+        assertThat(users.stored).hasSize(0)
+        assertThat(hasher.hashCalls.get()).isEqualTo(0)
+        assertThat(consentDecisions.rows).hasSize(0)
+    }
+
+    @Test
+    fun `register with an invalid consent status creates no account and skips hashing`() = runTest { // AC-5
+        val result = service.register("a@b.com", "Password1", ConsentDecisionInput("maybe", 1, "tr"))
+
+        assertThat(result.errorOrNull()).isEqualTo(AuthError.INVALID_INPUT)
+        assertThat(users.stored).hasSize(0)
+        assertThat(hasher.hashCalls.get()).isEqualTo(0)
+    }
+
+    @Test
+    fun `register stores no decision when the email is taken`() = runTest { // AC-5
+        service.register("a@b.com", "Password1").ok()
+
+        val result = service.register("a@b.com", "Password1", ConsentDecisionInput("granted", 1, "tr"))
+
+        assertThat(result.errorOrNull()).isEqualTo(AuthError.EMAIL_TAKEN)
+        assertThat(consentDecisions.rows).hasSize(0)
+    }
+
+    @Test
+    fun `login and refresh leave the consent out of the session`() = runTest { // AC-17
+        val registered = service.register("a@b.com", "Password1", ConsentDecisionInput("granted", 1, "tr")).ok()
+
+        assertThat(service.login("a@b.com", "Password1").ok().consent).isNull()
+        assertThat(service.refresh(registered.refreshToken).ok().consent).isNull()
     }
 
     @Test

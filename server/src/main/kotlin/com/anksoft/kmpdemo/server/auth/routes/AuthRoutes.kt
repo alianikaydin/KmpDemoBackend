@@ -78,4 +78,6 @@ private suspend fun ApplicationCall.respondAuthError(error: AuthError) = when (e
     AuthError.EMAIL_TAKEN -> respondError(HttpStatusCode.Conflict, ErrorCodes.EMAIL_TAKEN)
     AuthError.INVALID_CREDENTIALS -> respondError(HttpStatusCode.Unauthorized, ErrorCodes.INVALID_CREDENTIALS)
     AuthError.INVALID_TOKEN -> respondError(HttpStatusCode.Unauthorized, ErrorCodes.INVALID_TOKEN)
+    AuthError.UNKNOWN_CONSENT_VERSION ->
+        respondError(HttpStatusCode.UnprocessableEntity, ErrorCodes.UNKNOWN_CONSENT_VERSION)
 }
