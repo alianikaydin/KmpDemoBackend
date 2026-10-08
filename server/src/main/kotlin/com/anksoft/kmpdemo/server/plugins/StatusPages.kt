@@ -28,6 +28,7 @@ private val defaultMessages = mapOf(
     ErrorCodes.UNSUPPORTED_MEDIA_TYPE to "Unsupported media type.",
     ErrorCodes.NOT_FOUND to "Not found.",
     ErrorCodes.METHOD_NOT_ALLOWED to "Method not allowed.",
+    ErrorCodes.UNKNOWN_CONSENT_VERSION to "Unknown consent text version.",
     ErrorCodes.INTERNAL_ERROR to "Internal server error.",
 )
 
