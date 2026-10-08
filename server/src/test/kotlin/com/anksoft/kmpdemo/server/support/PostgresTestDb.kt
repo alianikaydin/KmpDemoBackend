@@ -4,6 +4,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
 
 /** One shared Postgres 17 container per test JVM, started lazily; Ryuk removes it on exit. */
+const val TEST_TEXT_VERSION_FLOOR = 9000
+
 object PostgresTestDb {
     private val container: PostgreSQLContainer by lazy {
         PostgreSQLContainer("postgres:17-alpine").also { it.start() }
@@ -21,7 +23,27 @@ object PostgresTestDb {
                     it.next() && it.getBoolean(1)
                 }
                 if (exists) statement.execute("TRUNCATE refresh_tokens, users CASCADE")
+                val consentExists = statement.executeQuery("SELECT to_regclass('public.consent_texts') IS NOT NULL").use {
+                    it.next() && it.getBoolean(1)
+                }
+                if (consentExists) {
+                    // Decisions went with users above; drop only the text versions tests added (seed is < 9000).
+                    statement.execute("DELETE FROM consent_texts WHERE version >= $TEST_TEXT_VERSION_FLOOR")
+                    statement.execute("DELETE FROM consent_text_versions WHERE version >= $TEST_TEXT_VERSION_FLOOR")
+                }
             }
+        }
+    }
+
+    /** Adds a consent text version (>= 9000) with one placeholder text per language; [reset] removes it again. */
+    fun insertTextVersion(version: Int, requiresReconsent: Boolean, languages: List<String> = listOf("en", "tr")) {
+        require(version >= TEST_TEXT_VERSION_FLOOR) { "test text versions start at $TEST_TEXT_VERSION_FLOOR" }
+        execute("INSERT INTO consent_text_versions (version, requires_reconsent) VALUES ($version, $requiresReconsent)")
+        languages.forEach { lang ->
+            execute(
+                "INSERT INTO consent_texts (version, language, label, description, policy_url) " +
+                    "VALUES ($version, '$lang', 'label $version $lang', 'description $version $lang', 'https://example.org/p')",
+            )
         }
     }
 
