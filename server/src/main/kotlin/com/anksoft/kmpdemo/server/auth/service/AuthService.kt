@@ -70,7 +70,11 @@ class AuthService(
             when (val result = consents.prepareDecision(consent, ConsentSource.REGISTER)) {
                 is ConsentResult.Ok -> result.value
                 is ConsentResult.Err -> return AuthResult.Err(
-                    if (result.error == ConsentError.UNKNOWN_TEXT_VERSION) AuthError.UNKNOWN_CONSENT_VERSION else AuthError.INVALID_INPUT,
+                    when (result.error) {
+                        ConsentError.UNKNOWN_TEXT_VERSION -> AuthError.UNKNOWN_CONSENT_VERSION
+                        // prepareDecision never reports ACCOUNT_NOT_FOUND; there is no account yet.
+                        ConsentError.INVALID_INPUT, ConsentError.ACCOUNT_NOT_FOUND -> AuthError.INVALID_INPUT
+                    },
                 )
             }
         }

@@ -3,9 +3,9 @@ package com.anksoft.kmpdemo.server.support
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
 
-/** One shared Postgres 17 container per test JVM, started lazily; Ryuk removes it on exit. */
 const val TEST_TEXT_VERSION_FLOOR = 9000
 
+/** One shared Postgres 17 container per test JVM, started lazily; Ryuk removes it on exit. */
 object PostgresTestDb {
     private val container: PostgreSQLContainer by lazy {
         PostgreSQLContainer("postgres:17-alpine").also { it.start() }

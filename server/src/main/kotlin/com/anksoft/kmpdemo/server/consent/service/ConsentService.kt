@@ -68,7 +68,11 @@ class ConsentService(
         )
     }
 
-    /** Appends the decision unless it repeats the latest one, then returns the resulting consent. */
+    /**
+     * Appends the decision unless it repeats the latest one, then returns the resulting consent.
+     * The repeat check is best effort: two identical concurrent requests may both append. That is
+     * harmless in an append-only history, so no lock or constraint is added.
+     */
     suspend fun updateConsent(userId: UUID, input: ConsentDecisionInput): ConsentResult<AccountConsent> {
         val prepared = when (val result = prepareDecision(input, ConsentSource.UPDATE)) {
             is ConsentResult.Err -> return result

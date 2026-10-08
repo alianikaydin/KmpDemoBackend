@@ -31,7 +31,7 @@ class ExposedConsentDecisionRepository(private val db: Database) : ConsentDecisi
                     textVersion = it[ConsentDecisionsTable.textVersion],
                     textLanguage = it[ConsentDecisionsTable.textLanguage],
                     decidedAt = it[ConsentDecisionsTable.decidedAt].toInstant(),
-                    source = ConsentSource.entries.first { s -> s.wire == it[ConsentDecisionsTable.origin] },
+                    source = requireNotNull(ConsentSource.fromWire(it[ConsentDecisionsTable.origin])),
                 )
             }
     }

@@ -17,7 +17,11 @@ enum class ConsentDecisionStatus(val wire: String) {
 
 enum class ConsentSource(val wire: String) {
     REGISTER("register"),
-    UPDATE("update"),
+    UPDATE("update");
+
+    companion object {
+        fun fromWire(value: String): ConsentSource? = entries.firstOrNull { it.wire == value }
+    }
 }
 
 /** One consent text in one language. */

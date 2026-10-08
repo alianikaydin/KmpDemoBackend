@@ -6,6 +6,7 @@ import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
+import com.anksoft.kmpdemo.contract.auth.AuthResponseDto
 import com.anksoft.kmpdemo.contract.consent.AccountConsentDto
 import com.anksoft.kmpdemo.contract.consent.ConsentDecisionDto
 import com.anksoft.kmpdemo.contract.consent.ConsentStatus
@@ -28,7 +29,6 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.test.Test
-import com.anksoft.kmpdemo.contract.auth.AuthResponseDto
 
 class AccountConsentRouteTest {
 

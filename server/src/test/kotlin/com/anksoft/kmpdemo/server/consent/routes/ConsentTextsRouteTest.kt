@@ -5,6 +5,7 @@ import assertk.assertions.contains
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import com.anksoft.kmpdemo.contract.consent.ConsentTextsDto
+import com.anksoft.kmpdemo.server.support.PostgresTestDb
 import com.anksoft.kmpdemo.server.support.getTexts
 import com.anksoft.kmpdemo.server.support.withTestApp
 import io.ktor.client.call.body
@@ -59,7 +60,7 @@ class ConsentTextsRouteTest {
 
     @Test
     fun `texts are served from the latest version`() = withTestApp { client -> // AC-21
-        com.anksoft.kmpdemo.server.support.PostgresTestDb.insertTextVersion(9001, requiresReconsent = false)
+        PostgresTestDb.insertTextVersion(9001, requiresReconsent = false)
 
         val body = client.getTexts("tr").body<ConsentTextsDto>()
 
