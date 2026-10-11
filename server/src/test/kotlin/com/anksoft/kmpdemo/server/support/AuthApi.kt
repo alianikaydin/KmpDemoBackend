@@ -1,5 +1,6 @@
 package com.anksoft.kmpdemo.server.support
 
+import com.anksoft.kmpdemo.contract.app.VersionPolicyPaths
 import com.anksoft.kmpdemo.contract.auth.AuthPaths
 import com.anksoft.kmpdemo.contract.auth.AuthResponseDto
 import com.anksoft.kmpdemo.contract.auth.LoginRequestDto
@@ -88,4 +89,10 @@ suspend fun HttpClient.putAccountConsentRaw(accessToken: String?, json: String):
         if (accessToken != null) header(HttpHeaders.Authorization, "Bearer $accessToken")
         contentType(ContentType.Application.Json)
         setBody(json)
+    }
+
+suspend fun HttpClient.getVersionPolicy(platform: String?, authorization: String? = null): HttpResponse =
+    get(path(VersionPolicyPaths.VERSION_POLICY)) {
+        if (platform != null) url.parameters.append(VersionPolicyPaths.PLATFORM_PARAM, platform)
+        if (authorization != null) header(HttpHeaders.Authorization, authorization)
     }

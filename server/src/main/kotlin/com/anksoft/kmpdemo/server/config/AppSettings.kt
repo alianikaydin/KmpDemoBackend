@@ -1,5 +1,7 @@
 package com.anksoft.kmpdemo.server.config
 
+import com.anksoft.kmpdemo.server.appversion.domain.AppVersion
+import com.anksoft.kmpdemo.server.appversion.domain.VersionPolicy
 import java.time.Duration
 
 /**
@@ -23,13 +25,18 @@ data class AppSettings(
     val rateLimitAuthPerMinute: Int,
     val jsonLogs: Boolean,
     val swaggerEnabled: Boolean,
+    /** Force-update policy of the Android app; [VersionPolicy.NO_UPDATE] unless configured. */
+    val androidVersionPolicy: VersionPolicy = VersionPolicy.NO_UPDATE,
+    /** Force-update policy of the iOS app; [VersionPolicy.NO_UPDATE] unless configured. */
+    val iosVersionPolicy: VersionPolicy = VersionPolicy.NO_UPDATE,
 ) {
     override fun toString(): String =
         "AppSettings(port=$port, databaseUrl=<masked>, databaseUser=<masked>, databasePassword=<masked>, " +
             "databasePoolSize=$databasePoolSize, dbMigrateOnStart=$dbMigrateOnStart, jwtSecret=<masked>, " +
             "jwtIssuer=$jwtIssuer, jwtAudience=$jwtAudience, accessTokenTtl=$accessTokenTtl, " +
             "refreshTokenTtl=$refreshTokenTtl, corsAllowedOrigins=$corsAllowedOrigins, " +
-            "rateLimitAuthPerMinute=$rateLimitAuthPerMinute, jsonLogs=$jsonLogs, swaggerEnabled=$swaggerEnabled)"
+            "rateLimitAuthPerMinute=$rateLimitAuthPerMinute, jsonLogs=$jsonLogs, swaggerEnabled=$swaggerEnabled, " +
+            "androidVersionPolicy=$androidVersionPolicy, iosVersionPolicy=$iosVersionPolicy)"
 
     companion object {
         const val MIN_JWT_SECRET_BYTES = 32
@@ -57,6 +64,16 @@ data class AppSettings(
                 return parsed.takeIf { !it.isZero && !it.isNegative } ?: invalid(name)
             }
 
+            fun version(name: String): AppVersion =
+                raw(name)?.let { AppVersion.parse(it) ?: invalid(name) } ?: AppVersion.ZERO
+
+            fun versionPolicy(minName: String, latestName: String): VersionPolicy {
+                val min = version(minName)
+                val latest = version(latestName)
+                if (min > latest) invalid(minName)
+                return VersionPolicy(min, latest)
+            }
+
             val secret = required("JWT_SECRET")
             if (secret.toByteArray(Charsets.UTF_8).size < MIN_JWT_SECRET_BYTES) invalid("JWT_SECRET")
 
@@ -81,6 +98,11 @@ data class AppSettings(
                 rateLimitAuthPerMinute = int("RATE_LIMIT_AUTH_PER_MINUTE", 20, 0),
                 jsonLogs = logFormat == "json",
                 swaggerEnabled = bool("SWAGGER_ENABLED", false),
+                androidVersionPolicy = versionPolicy(
+                    "APP_ANDROID_MIN_SUPPORTED_VERSION",
+                    "APP_ANDROID_LATEST_VERSION",
+                ),
+                iosVersionPolicy = versionPolicy("APP_IOS_MIN_SUPPORTED_VERSION", "APP_IOS_LATEST_VERSION"),
             )
         }
     }

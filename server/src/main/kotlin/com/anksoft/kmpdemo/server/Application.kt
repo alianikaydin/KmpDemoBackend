@@ -1,5 +1,7 @@
 package com.anksoft.kmpdemo.server
 
+import com.anksoft.kmpdemo.server.appversion.routes.versionPolicyRoutes
+import com.anksoft.kmpdemo.server.appversion.service.VersionPolicyService
 import com.anksoft.kmpdemo.server.auth.routes.authRoutes
 import com.anksoft.kmpdemo.server.auth.security.JwtConfig
 import com.anksoft.kmpdemo.server.auth.service.AuthService
@@ -54,6 +56,7 @@ fun Application.module(
     val db: Database
     val authService: AuthService
     val consentService: ConsentService
+    val versionPolicyService: VersionPolicyService
     try {
         if (settings.dbMigrateOnStart) migrate(dataSource)
         db = connect(dataSource)
@@ -63,10 +66,12 @@ fun Application.module(
         }
         authService = get<AuthService>()
         consentService = get<ConsentService>()
+        versionPolicyService = get<VersionPolicyService>()
         runBlocking {
             authService.warmUp()
             consentService.warnIfPlaceholderTexts()
         }
+        versionPolicyService.logEffectivePolicies()
     } catch (e: Exception) {
         // Startup failed after the pool was opened: release it instead of leaking connections.
         dataSource.close()
@@ -87,6 +92,7 @@ fun Application.module(
         healthRoutes(databaseReady = { db.ping() })
         authRoutes(authService, rateLimited = settings.rateLimitAuthPerMinute > 0)
         consentRoutes(consentService)
+        versionPolicyRoutes(versionPolicyService)
         openApiRoutes(settings.swaggerEnabled)
     }
 }

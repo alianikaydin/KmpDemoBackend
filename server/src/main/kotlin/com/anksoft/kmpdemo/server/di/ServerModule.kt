@@ -1,5 +1,7 @@
 package com.anksoft.kmpdemo.server.di
 
+import com.anksoft.kmpdemo.contract.app.AppPlatforms
+import com.anksoft.kmpdemo.server.appversion.service.VersionPolicyService
 import com.anksoft.kmpdemo.server.auth.data.ExposedRefreshTokenRepository
 import com.anksoft.kmpdemo.server.auth.data.ExposedUserRepository
 import com.anksoft.kmpdemo.server.auth.domain.AccessTokenIssuer
@@ -35,6 +37,14 @@ fun serverModule(settings: AppSettings, db: Database, clock: Clock): Module = mo
     single<ConsentTextRepository> { ExposedConsentTextRepository(db) }
     single<ConsentDecisionRepository> { ExposedConsentDecisionRepository(db) }
     single { ConsentService(get(), get(), clock) }
+    single {
+        VersionPolicyService(
+            mapOf(
+                AppPlatforms.ANDROID to settings.androidVersionPolicy,
+                AppPlatforms.IOS to settings.iosVersionPolicy,
+            ),
+        )
+    }
     single {
         AuthService(get(), get(), get(), get(), get(), clock, settings.refreshTokenTtl, consents = get())
     }
