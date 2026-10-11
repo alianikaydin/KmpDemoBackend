@@ -7,6 +7,7 @@ import com.anksoft.kmpdemo.contract.error.ErrorCodes
 import com.anksoft.kmpdemo.contract.error.ErrorResponseDto
 import com.anksoft.kmpdemo.server.support.getAccountConsent
 import com.anksoft.kmpdemo.server.support.getTexts
+import com.anksoft.kmpdemo.server.support.getVersionPolicy
 import com.anksoft.kmpdemo.server.support.login
 import com.anksoft.kmpdemo.server.support.registerOk
 import com.anksoft.kmpdemo.server.support.testSettings
@@ -50,6 +51,17 @@ class RateLimitTest {
             repeat(5) {
                 assertThat(client.getAccountConsent(session.accessToken).status).isEqualTo(HttpStatusCode.OK)
             }
+        }
+    }
+
+    @Test
+    fun `version policy endpoint is not rate limited`() { // ADR-16
+        withTestApp(testSettings { it.copy(rateLimitAuthPerMinute = 1) }) { client ->
+            repeat(5) { assertThat(client.getVersionPolicy("android").status).isEqualTo(HttpStatusCode.OK) }
+            repeat(5) { assertThat(client.getVersionPolicy("web").status).isEqualTo(HttpStatusCode.BadRequest) }
+
+            // The calls above did not use up the auth bucket: the first register still passes.
+            client.registerOk()
         }
     }
 
