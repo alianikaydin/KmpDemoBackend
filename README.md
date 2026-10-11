@@ -78,9 +78,11 @@ contract publishes for all targets and that the server image builds.
 | `RATE_LIMIT_AUTH_PER_MINUTE` | `20` | per client IP and instance; `0` disables |
 | `LOG_FORMAT` | `plain` | `json` for container/production logs |
 | `SWAGGER_ENABLED` | `false` | serve `/swagger` |
+| `APP_ANDROID_MIN_SUPPORTED_VERSION` / `APP_ANDROID_LATEST_VERSION` | `0.0.0` / `0.0.0` | Android version policy; `MAJOR.MINOR.PATCH`, min <= latest; invalid values stop the server |
+| `APP_IOS_MIN_SUPPORTED_VERSION` / `APP_IOS_LATEST_VERSION` | `0.0.0` / `0.0.0` | iOS version policy, same rules |
 
 Secrets are never committed; all instances behind a load balancer must share
-`JWT_SECRET` and `DATABASE_URL`.
+`JWT_SECRET`, `DATABASE_URL` and the `APP_*_VERSION` values.
 
 ## Endpoints
 
@@ -97,6 +99,7 @@ Base path `/api/v1/`; full description in
 | `GET consent/texts?lang=` | current consent text, public (`lang` falls back to `en`) |
 | `GET account/consent` | consent of the authenticated account (Bearer) |
 | `PUT account/consent` | set the consent of the authenticated account (Bearer, idempotent) |
+| `GET app/version-policy?platform=` | version policy of `android` or `ios`, public, never 401, `Cache-Control: no-store` |
 | `GET /health/live`, `GET /health/ready` | liveness / readiness (database) |
 
 ### Consent texts
@@ -114,6 +117,41 @@ published by Flyway migrations:
   text (version and language) a user saw and when they decided.
 - The seed text (`V4`) is a placeholder; the server logs a warning at startup
   while the latest text still points to `example.com`.
+
+### Version policy (force update)
+
+`GET app/version-policy?platform=android|ios` returns
+`{"min_supported_version":"x.y.z","latest_version":"x.y.z"}`. The values come
+from the four `APP_{ANDROID,IOS}_{MIN_SUPPORTED,LATEST}_VERSION` variables and
+are fixed for the lifetime of the process.
+
+- Format: exactly `MAJOR.MINOR.PATCH`, decimal components without leading
+  zeros, at most 9 digits each (`1.2.3`; not `v1.2.3`, `1.2`, `1.2.3-beta`).
+- Meaning: an installed version below `MIN_SUPPORTED` must update, one below
+  `LATEST` may update. `0.0.0` (the default) means no update.
+- Per platform `MIN_SUPPORTED` must not exceed `LATEST`. Raising only `MIN`
+  without `LATEST` therefore fails too. An invalid configuration stops the
+  server at startup and the error names the variable (never its value).
+- Order rule: never raise `LATEST` before the new version is live in the
+  store, and never raise `MIN_SUPPORTED` above the version that is live in the
+  store, or users are sent to an update they cannot install.
+- The effective values are logged at startup (`Version policy: android
+  min=... latest=..., ios min=... latest=...`).
+
+Forcing an update in an emergency:
+
+1. Set `APP_<PLATFORM>_MIN_SUPPORTED_VERSION` (and `..._LATEST_VERSION` if it
+   is lower) in the environment's configuration.
+2. Redeploy all instances; they must share the same values (a rolling deploy
+   may answer with different values for a short time, which is harmless).
+3. Check the `Version policy:` line in the startup log and
+   `curl -i 'https://<host>/api/v1/app/version-policy?platform=android'`.
+4. The change reaches a user at the next cold start of the app.
+
+Rollback is setting the previous values and redeploying.
+
+Deployment checklist: check the `Version policy:` startup line of production.
+All `0.0.0` must be intended; otherwise the configuration was forgotten.
 
 ## Contract releases
 

@@ -140,6 +140,30 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ConsentTexts' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /app/version-policy:
+    get:
+      summary: Version policy of one app platform (force update)
+      description: >
+        Public, never 401: no Authorization header is needed, and a header that is sent is ignored.
+        Returns the oldest supported and the latest app version of the platform. An installed version below
+        `min_supported_version` must update; one below `latest_version` may update. `0.0.0` for both means no
+        update. `platform` is matched exactly (lower case, no trimming). Not rate limited, never cached.
+      parameters:
+        - name: platform
+          in: query
+          required: true
+          schema: { type: string, enum: [android, ios] }
+      responses:
+        '200':
+          description: Version policy of the platform
+          headers:
+            Cache-Control:
+              schema: { type: string, example: no-store }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VersionPolicy' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /account/consent:
     get:
       summary: Current consent of the authenticated account
@@ -236,6 +260,18 @@ components:
         label: { type: string }
         description: { type: string }
         policy_url: { type: string }
+    VersionPolicy:
+      type: object
+      required: [min_supported_version, latest_version]
+      properties:
+        min_supported_version:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$'
+          example: 1.0.0
+        latest_version:
+          type: string
+          pattern: '^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$'
+          example: 1.2.0
     ConsentDecision:
       type: object
       required: [status, text_version, text_language]

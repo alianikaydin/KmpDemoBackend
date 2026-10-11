@@ -20,7 +20,10 @@ class SwaggerTest {
             assertThat(ui.bodyAsText()).contains("swagger")
 
             val spec = client.get("/swagger/documentation.yaml").bodyAsText()
-            listOf("/auth/register", "/auth/login", "/auth/refresh", "/auth/me", "/auth/logout", "/consent/texts", "/account/consent").forEach {
+            listOf(
+                "/auth/register", "/auth/login", "/auth/refresh", "/auth/me", "/auth/logout",
+                "/consent/texts", "/account/consent", "/app/version-policy",
+            ).forEach {
                 assertThat(spec).contains(it)
             }
         }
