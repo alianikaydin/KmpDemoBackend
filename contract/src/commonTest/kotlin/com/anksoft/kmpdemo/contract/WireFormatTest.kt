@@ -4,6 +4,7 @@ import assertk.assertThat
 import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNull
+import com.anksoft.kmpdemo.contract.app.VersionPolicyDto
 import com.anksoft.kmpdemo.contract.auth.AuthResponseDto
 import com.anksoft.kmpdemo.contract.auth.LoginRequestDto
 import com.anksoft.kmpdemo.contract.auth.RefreshTokenRequestDto
@@ -13,8 +14,10 @@ import com.anksoft.kmpdemo.contract.consent.AccountConsentDto
 import com.anksoft.kmpdemo.contract.consent.ConsentDecisionDto
 import com.anksoft.kmpdemo.contract.consent.ConsentTextsDto
 import com.anksoft.kmpdemo.contract.error.ErrorResponseDto
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
+import kotlin.test.assertFailsWith
 
 /**
  * Golden JSON strings guard the wire format. Changing one of them is a contract
@@ -131,5 +134,29 @@ class WireFormatTest {
             """{"access_token":"at","user":{"id":"1","email":"a@b.com"}}""",
         )
         assertThat(decoded.consent).isNull()
+    }
+
+    // Version policy additions (contract 0.3.0)
+
+    @Test
+    fun `version policy wire format is stable`() =
+        check(
+            VersionPolicyDto("1.0.0", "1.2.0"),
+            """{"min_supported_version":"1.0.0","latest_version":"1.2.0"}""",
+        )
+
+    @Test
+    fun `client json tolerates unknown fields in the version policy`() {
+        val decoded = clientJson.decodeFromString<VersionPolicyDto>(
+            """{"min_supported_version":"0.0.0","latest_version":"0.0.0","future":1}""",
+        )
+        assertThat(decoded).isEqualTo(VersionPolicyDto("0.0.0", "0.0.0"))
+    }
+
+    @Test
+    fun `version policy without a field fails to decode`() {
+        assertFailsWith<SerializationException> {
+            clientJson.decodeFromString<VersionPolicyDto>("""{"min_supported_version":"1.0.0"}""")
+        }
     }
 }
