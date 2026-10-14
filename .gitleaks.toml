@@ -1,0 +1,25 @@
+# Gitleaks configuration (requires gitleaks >= 8.25.0 for [[allowlists]]).
+# Extends the default ruleset. Add an entry only for a verified fake value in test code;
+# each entry must match BOTH the exact file path and the exact value. Never exclude a directory.
+title = "KmpDemoBackend gitleaks config"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Dummy 32-char JWT secret used by SecurityTest"
+condition = "AND"
+paths = ['''^server/src/test/kotlin/com/anksoft/kmpdemo/server/auth/security/SecurityTest\.kt$''']
+regexes = ['''^0123456789abcdef0123456789abcdef$''']
+
+[[allowlists]]
+description = "Dummy 32-char JWT secret used by AppSettingsTest"
+condition = "AND"
+paths = ['''^server/src/test/kotlin/com/anksoft/kmpdemo/server/config/AppSettingsTest\.kt$''']
+regexes = ['''^0123456789abcdef0123456789abcdef$''']
+
+[[allowlists]]
+description = "Dummy password used by SecretsNotLeakedTest to prove it is never logged"
+condition = "AND"
+paths = ['''^server/src/test/kotlin/com/anksoft/kmpdemo/server/system/SecretsNotLeakedTest\.kt$''']
+regexes = ['''^S3cretPassw0rdX$''']
