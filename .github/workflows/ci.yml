@@ -3,6 +3,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -33,3 +34,18 @@ jobs:
           path: |
             server/build/reports/tests/
             contract/build/reports/tests/
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read # the action lists PR commits through the API
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: "8.28.0" # [[allowlists]] in .gitleaks.toml needs >= 8.25.0
+          GITLEAKS_ENABLE_COMMENTS: "false"
